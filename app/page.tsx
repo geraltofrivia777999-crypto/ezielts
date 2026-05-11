@@ -163,7 +163,17 @@ const FAQ = [
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
+  const params = await searchParams;
+  if (params.code) {
+    const { redirect } = await import("next/navigation");
+    redirect(`/api/auth/callback?code=${encodeURIComponent(params.code)}&next=/reset-password`);
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
