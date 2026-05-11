@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ezielts
+    runtime: node
+    plan: starter         # $7/мес. Для бесплатного — "free" (засыпает после 15 мин)
+    region: frankfurt     # ближе всего к Алматы/Москве по латенси
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false        # задаётся в Render UI вручную
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false        # https://ezielts.onrender.com (или свой домен)

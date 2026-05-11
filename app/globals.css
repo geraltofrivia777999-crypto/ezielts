@@ -1,26 +1,91 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Brand */
+    --primary: 108 99 255;          /* #6C63FF — violet */
+    --primary-foreground: 255 255 255;
+    --secondary: 0 201 167;         /* #00C9A7 — teal */
+    --secondary-foreground: 255 255 255;
+
+    /* Surfaces */
+    --background: 250 250 250;      /* #FAFAFA */
+    --foreground: 26 26 46;         /* #1A1A2E */
+    --surface: 255 255 255;
+    --surface-elevated: 244 244 248;
+    --border: 229 231 235;          /* #E5E7EB */
+    --muted: 156 163 175;           /* #9CA3AF */
+    --muted-foreground: 107 114 128;
+
+    /* Status */
+    --destructive: 239 68 68;
+    --warning: 245 158 11;
+    --success: 16 185 129;
+
+    /* Band score colors */
+    --band-high: 16 185 129;        /* 7+ green */
+    --band-mid: 245 158 11;         /* 5-6 amber */
+    --band-low: 239 68 68;          /* <5 red */
+
+    /* Radius */
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: 15 17 23;
+    --foreground: 226 232 240;
+    --surface: 26 29 39;
+    --surface-elevated: 34 38 58;
+    --border: 51 55 80;
+    --muted: 136 146 176;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme inline {
+  --color-primary: rgb(var(--primary));
+  --color-primary-foreground: rgb(var(--primary-foreground));
+  --color-secondary: rgb(var(--secondary));
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-surface: rgb(var(--surface));
+  --color-surface-elevated: rgb(var(--surface-elevated));
+  --color-border: rgb(var(--border));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-destructive: rgb(var(--destructive));
+  --color-warning: rgb(var(--warning));
+  --color-success: rgb(var(--success));
+  --color-band-high: rgb(var(--band-high));
+  --color-band-mid: rgb(var(--band-mid));
+  --color-band-low: rgb(var(--band-low));
+  --radius: var(--radius);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+  --font-serif: Georgia, "Times New Roman", serif;
 }
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans, Inter, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Passage text (IELTS-like exam feel) */
+.passage-text {
+  font-family: Georgia, serif;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: rgb(var(--foreground));
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
