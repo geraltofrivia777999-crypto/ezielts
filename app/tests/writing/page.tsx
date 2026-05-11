@@ -16,6 +16,7 @@ import {
   Lock,
   RotateCcw,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getNextWriting } from "@/lib/supabase/queries";
@@ -92,6 +93,7 @@ export default function WritingTestPage() {
   const [error, setError] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [timerSec, setTimerSec] = useState(0);
+  const [showSample, setShowSample] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const loadingRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -342,6 +344,31 @@ export default function WritingTestPage() {
             <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed whitespace-pre-wrap">{text}</p>
           </div>
 
+          {/* Sample answer (Band 8+) */}
+          {task.sample_answer && (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5">
+              <button
+                onClick={() => setShowSample((v) => !v)}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Образец ответа Band 8+</span>
+                  <Badge variant="secondary" className="text-[10px]">Эталон</Badge>
+                </div>
+                <ChevronDown className={cn("w-4 h-4 text-[rgb(var(--muted-foreground))] transition-transform", showSample && "rotate-180")} />
+              </button>
+              {showSample && (
+                <div className="mt-4 pt-4 border-t border-amber-200">
+                  <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-wrap">{task.sample_answer}</p>
+                  <p className="text-xs text-amber-700 mt-3 italic">
+                    💡 Сравни структуру и лексику с своим ответом. Подмечай linking words и сложные грамматические конструкции.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1 gap-2" onClick={() => { setFeedback(null); setPhase("write"); setText(""); }}>
@@ -412,6 +439,14 @@ export default function WritingTestPage() {
           <Badge variant="outline" className="mb-4 self-start">
             {taskTypeLabel} · мин. {minWords} слов
           </Badge>
+          {task.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={task.image_url}
+              alt="Task 1 chart"
+              className="w-full rounded-lg border border-[rgb(var(--border))] mb-4 bg-white"
+            />
+          )}
           <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-line">
             {task.prompt_text}
           </p>
@@ -422,6 +457,10 @@ export default function WritingTestPage() {
           <div className="md:hidden shrink-0 bg-[rgb(var(--surface-elevated))] border-b border-[rgb(var(--border))] px-4 py-2">
             <details>
               <summary className="text-xs text-[rgb(var(--primary))] font-medium cursor-pointer">Показать задание</summary>
+              {task.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={task.image_url} alt="Task 1 chart" className="w-full rounded-lg border border-[rgb(var(--border))] my-2 bg-white" />
+              )}
               <p className="text-xs text-[rgb(var(--foreground))] mt-2 leading-relaxed whitespace-pre-line">{task.prompt_text}</p>
             </details>
           </div>

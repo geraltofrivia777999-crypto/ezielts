@@ -19,6 +19,8 @@ import {
   PenLine,
   Headphones,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { getTutorMessages } from "@/lib/supabase/queries";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +65,31 @@ export default function TutorPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load history from Supabase on mount
+  useEffect(() => {
+    async function loadHistory() {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+
+      const history = await getTutorMessages(sb, user.id, 50);
+      if (history.length === 0) return;
+
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const loaded: Message[] = (history as any[]).map((m) => ({
+        id: m.id as string,
+        role: m.role as Role,
+        content: m.content as string,
+      }));
+
+      // Replace welcome with full history (keep welcome as first)
+      setMessages((prev) => [prev[0], ...loaded]);
+      // Count user messages for free limit
+      setUsedCount(loaded.filter((m) => m.role === "user").length);
+    }
+    loadHistory();
+  }, []);
 
   async function sendMessage(text: string) {
     if (!text.trim() || loading) return;

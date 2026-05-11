@@ -116,7 +116,9 @@ export default function DashboardPage() {
 
   // ── Derived data ──
 
-  const isPro = user?.is_pro ?? false;
+  // Pro = either is_pro flag is true OR plan is not free
+  // (defends against view computing is_pro incorrectly)
+  const isPro = Boolean(user?.is_pro) || (user?.plan !== undefined && user.plan !== "free" && user?.subscription_status === "active");
   const streak = user?.streak ?? 0;
   const targetBand = user?.target_band ?? 7.0;
   const examDate = user?.exam_date ?? null;

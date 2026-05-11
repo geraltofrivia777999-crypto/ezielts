@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Eye, EyeOff, Mail, Lock, User, ChevronRight, Target } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, ChevronRight, Target, CheckCircle2, MailCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const TARGET_BANDS = [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0];
@@ -19,7 +19,7 @@ const GOALS = [
   { value: "other", label: "🎯 Другое" },
 ];
 
-type Step = "account" | "onboarding";
+type Step = "account" | "onboarding" | "verify";
 
 export default function SignupPage() {
   const [step, setStep] = useState<Step>("account");
@@ -83,6 +83,7 @@ export default function SignupPage() {
         "Не решил/а ещё": "unknown",
       };
 
+      /* eslint-disable @typescript-eslint/no-explicit-any */
       await (sb as any).from("profiles").update({
         name,
         target_band: targetBand,
@@ -92,6 +93,15 @@ export default function SignupPage() {
       }).eq("id", data.user.id);
     }
 
+    setLoading(false);
+
+    // If email confirmation is required, session is null — show "check inbox"
+    if (!data.session) {
+      setStep("verify");
+      return;
+    }
+
+    // Otherwise (email confirmation disabled), session is set — go to dashboard
     router.push("/dashboard");
     router.refresh();
   }
@@ -193,6 +203,50 @@ export default function SignupPage() {
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 3: Email verification ───────────────────────────────────────────
+  if (step === "verify") {
+    return (
+      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center p-4">
+        <Link href="/" className="flex items-center gap-2 mb-8">
+          <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
+            <span className="text-white font-bold text-sm">EZ</span>
+          </div>
+          <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ielts</span>
+        </Link>
+
+        <div className="w-full max-w-md">
+          <div className="bg-[rgb(var(--surface))] rounded-2xl border border-[rgb(var(--border))] shadow-sm p-8 text-center flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <MailCheck className="w-8 h-8 text-green-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-[rgb(var(--foreground))]">
+              Проверьте почту
+            </h1>
+            <p className="text-sm text-[rgb(var(--muted-foreground))]">
+              Мы отправили письмо на <strong className="text-[rgb(var(--foreground))]">{email}</strong>.
+              Перейдите по ссылке в письме, чтобы активировать аккаунт.
+            </p>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 text-left w-full">
+              <strong className="block mb-1">Не пришло письмо?</strong>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>Проверьте папку &quot;Спам&quot;</li>
+                <li>Подождите 1–2 минуты</li>
+                <li>Убедитесь, что email указан правильно</li>
+              </ul>
+            </div>
+
+            <Link href="/login" className="w-full">
+              <Button variant="outline" className="w-full">
+                Перейти ко входу
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

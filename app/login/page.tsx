@@ -25,15 +25,40 @@ export default function LoginPage() {
     const { error: authError } = await sb.auth.signInWithPassword({ email, password });
 
     if (authError) {
-      setError(authError.message === "Invalid login credentials"
-        ? "Неверный email или пароль"
-        : authError.message);
+      const msg = authError.message;
+      if (msg === "Invalid login credentials") {
+        setError("Неверный email или пароль");
+      } else if (msg.toLowerCase().includes("email not confirmed") || msg.toLowerCase().includes("not verified")) {
+        setError("Email не подтверждён. Проверьте почту и перейдите по ссылке из письма.");
+      } else {
+        setError(msg);
+      }
       setLoading(false);
       return;
     }
 
     router.push("/dashboard");
     router.refresh();
+  }
+
+  async function handleResendVerification() {
+    if (!email) {
+      setError("Введите email чтобы переотправить письмо");
+      return;
+    }
+    setError(null);
+    const sb = createClient();
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const { error: resendErr } = await (sb as any).auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
+    });
+    if (resendErr) {
+      setError(resendErr.message);
+    } else {
+      setError("Письмо отправлено повторно. Проверьте почту.");
+    }
   }
 
   return (
@@ -61,7 +86,16 @@ export default function LoginPage() {
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2 mb-2">
-              {error}
+              <div>{error}</div>
+              {error.includes("не подтверждён") && (
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  className="mt-2 text-xs font-medium text-red-900 underline hover:no-underline"
+                >
+                  Отправить письмо повторно
+                </button>
+              )}
             </div>
           )}
 

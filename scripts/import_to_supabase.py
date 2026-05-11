@@ -55,6 +55,48 @@ log = logging.getLogger(__name__)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+import time
+
+CONN_ERRORS = (
+    "ConnectionTerminated", "RemoteProtocolError",
+    "ConnectionResetError", "ReadTimeout",
+    "ConnectTimeout", "handshake operation timed out",
+    "ConnectError", "Server disconnected",
+)
+
+
+def _is_conn_err(e: Exception) -> bool:
+    return any(s in str(e) for s in CONN_ERRORS)
+
+
+def _reconnect(sb: Client) -> Client:
+    new = create_client(SUPABASE_URL, SUPABASE_KEY)
+    sb.postgrest = new.postgrest
+    sb.storage = new.storage
+    return sb
+
+
+def _safe_call(fn, sb: Client, retries: int = 6):
+    """Run fn() with auto-retry + reconnect on connection errors."""
+    for attempt in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            if _is_conn_err(e) and attempt < retries - 1:
+                wait = min(2 ** attempt, 30)
+                log.warning(f"Connection error (attempt {attempt + 1}/{retries}): {str(e)[:100]}. "
+                            f"Reconnecting in {wait}s...")
+                time.sleep(wait)
+                _reconnect(sb)
+                continue
+            raise
+
+
+def _safe_insert(sb: Client, table: str, rows, retries: int = 6):
+    """Insert with retry on connection errors."""
+    _safe_call(lambda: sb.table(table).insert(rows).execute(), sb, retries)
+
+
 def strip_html(text: str) -> str:
     """Remove HTML tags, decode common entities."""
     if not text:
@@ -125,6 +167,30 @@ def import_reading(sb: Client, dry: bool = False):
             log.debug(f"[DRY] reading_tests: {title[:50]}")
             continue
 
+        # Skip if test already has questions imported (resume support)
+        existing = _safe_call(
+            lambda: sb.table("reading_tests").select("id").eq("external_id", ext_id).execute(),
+            sb,
+        )
+        if existing.data:
+            existing_id = existing.data[0]["id"]
+            sec_check = _safe_call(
+                lambda: sb.table("reading_sections").select("id").eq("test_id", existing_id).limit(1).execute(),
+                sb,
+            )
+            if sec_check.data:
+                grp_check = _safe_call(
+                    lambda: sb.table("reading_question_groups").select("id").eq("section_id", sec_check.data[0]["id"]).limit(1).execute(),
+                    sb,
+                )
+                if grp_check.data:
+                    q_check = _safe_call(
+                        lambda: sb.table("reading_questions").select("id").eq("group_id", grp_check.data[0]["id"]).limit(1).execute(),
+                        sb,
+                    )
+                    if q_check.data:
+                        continue  # Fully imported, skip
+
         # Upsert test
         res = sb.table("reading_tests").upsert(
             test_row, on_conflict="external_id"
@@ -184,29 +250,31 @@ def import_reading(sb: Client, dry: bool = False):
                     if t:
                         q_texts.append(t)
 
-                # For each question number in range
+                # Build all questions in a batch
+                q_rows = []
                 for qnum in range(q_start, q_end + 1):
                     q_text = q_texts[qnum - q_start] if (qnum - q_start) < len(q_texts) else f"Question {qnum}"
                     correct = answers_map.get(str(qnum), "")
 
-                    # Determine options for MCQ
                     options = None
                     if q_type == "tfng":
                         options = ["TRUE", "FALSE", "NOT GIVEN"]
                     elif q_type == "mcq":
-                        # Try to extract A/B/C/D from block texts (simplified)
                         opts = [b for b in q_texts if len(b) < 200 and b[0:2] in ("A.", "B.", "C.", "D.")]
                         if opts:
                             options = opts
 
-                    q_row = {
+                    q_rows.append({
                         "group_id":       grp_id,
                         "question_text":  q_text[:2000],
                         "options":        json.dumps(options) if options else None,
                         "correct_answer": str(correct).upper(),
                         "sort_order":     qnum,
-                    }
-                    sb.table("reading_questions").insert(q_row).execute()
+                    })
+
+                # Single batch insert per group (massively reduces request count)
+                if q_rows:
+                    _safe_insert(sb, "reading_questions", q_rows)
 
     log.info(f"Reading import done: {len(tests)} tests")
 

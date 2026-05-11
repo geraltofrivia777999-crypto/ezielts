@@ -103,11 +103,29 @@ function daysUntilExam(date: string | null): number | null {
   return diff;
 }
 
+type AIDay = {
+  day: number;
+  title: string;
+  skill: "reading" | "listening" | "writing" | "speaking" | "mixed";
+  duration_min: number;
+  focus_area: string;
+  exercise_suggestion: string;
+};
+
+type AIPlan = {
+  focus_skills: string[];
+  overall_strategy: string;
+  days: AIDay[];
+};
+
 export default function PlanPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [plan, setPlan] = useState<Task[]>([]);
+  const [aiPlan, setAiPlan] = useState<AIPlan | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -146,6 +164,24 @@ export default function PlanPage() {
     }
     load();
   }, []);
+
+  async function generateAIPlan() {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/ai/study-plan", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "API error");
+      }
+      const data: AIPlan = await res.json();
+      setAiPlan(data);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Не удалось сгенерировать план");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -303,13 +339,83 @@ export default function PlanPage() {
           </CardContent>
         </Card>
 
-        {/* 7-day plan */}
+        {/* AI Plan generator */}
+        <Card className="border-violet-200 bg-gradient-to-br from-violet-50/50 to-blue-50/50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-violet-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-[rgb(var(--foreground))] mb-1">AI план на 14 дней</h3>
+                <p className="text-sm text-[rgb(var(--muted-foreground))] mb-3">
+                  GPT-4 проанализирует твой текущий уровень, цель и дату экзамена, и сгенерит детальный план с конкретными типами упражнений.
+                </p>
+                {aiError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2 mb-3">
+                    {aiError}
+                  </div>
+                )}
+                {!aiPlan && (
+                  <Button onClick={generateAIPlan} disabled={aiLoading} size="sm">
+                    {aiLoading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Генерируем...</> : <><Sparkles className="w-4 h-4 mr-2" />Сгенерировать план</>}
+                  </Button>
+                )}
+                {aiPlan && (
+                  <div className="flex flex-col gap-4 mt-2">
+                    <div className="bg-white border border-violet-200 rounded-xl p-4">
+                      <div className="text-xs font-medium text-violet-700 mb-2">СТРАТЕГИЯ</div>
+                      <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed">{aiPlan.overall_strategy}</p>
+                      {aiPlan.focus_skills?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {aiPlan.focus_skills.map((s) => (
+                            <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {aiPlan.days.map((d) => {
+                        const meta = SKILL_META[d.skill] ?? SKILL_META.reading;
+                        return (
+                          <div key={d.day} className="bg-white border border-[rgb(var(--border))] rounded-lg p-3 flex gap-3">
+                            <div className={cn("w-8 h-8 rounded-md flex items-center justify-center shrink-0", meta.bg)}>
+                              <meta.icon className={cn("w-4 h-4", meta.color)} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-[10px] font-medium text-[rgb(var(--muted-foreground))]">День {d.day}</span>
+                                <span className="text-[10px] text-[rgb(var(--muted-foreground))]">·</span>
+                                <span className="text-[10px] text-[rgb(var(--muted-foreground))]">{d.duration_min} мин</span>
+                              </div>
+                              <p className="text-xs font-medium text-[rgb(var(--foreground))] truncate">{d.title}</p>
+                              <p className="text-[11px] text-[rgb(var(--primary))] mt-0.5 truncate">{d.focus_area}</p>
+                              <p className="text-[11px] text-[rgb(var(--muted-foreground))] mt-1 line-clamp-2">{d.exercise_suggestion}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <Button variant="outline" size="sm" onClick={generateAIPlan} disabled={aiLoading} className="self-start">
+                      {aiLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                      Перегенерировать
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 7-day plan (basic, template-based) */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="w-4 h-4 text-amber-500" />
-              <h2 className="font-semibold text-[rgb(var(--foreground))]">План на неделю</h2>
-              <span className="ml-auto text-xs text-[rgb(var(--muted-foreground))]">7 дней · подобран AI</span>
+              <h2 className="font-semibold text-[rgb(var(--foreground))]">Базовый план на неделю</h2>
+              <span className="ml-auto text-xs text-[rgb(var(--muted-foreground))]">шаблон</span>
             </div>
 
             <div className="flex flex-col gap-2">

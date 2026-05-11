@@ -17,6 +17,7 @@ import {
   BookOpen,
   Loader2,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getSpeakingTopics } from "@/lib/supabase/queries";
@@ -123,6 +124,7 @@ export default function SpeakingTestPage() {
   const [feedback, setFeedback] = useState<SpeakingFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [micDenied, setMicDenied] = useState(false);
+  const [showSample, setShowSample] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -396,6 +398,30 @@ export default function SpeakingTestPage() {
             <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
               <div className="font-semibold text-sm mb-2">Транскрипция</div>
               <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">{feedback.transcript}</p>
+            </div>
+          )}
+
+          {/* Sample answer */}
+          {topics[1]?.sample_answer && (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5">
+              <button
+                onClick={() => setShowSample((v) => !v)}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Образец ответа Band 8+</span>
+                </div>
+                <ChevronDown className={cn("w-4 h-4 text-[rgb(var(--muted-foreground))] transition-transform", showSample && "rotate-180")} />
+              </button>
+              {showSample && (
+                <div className="mt-4 pt-4 border-t border-amber-200">
+                  <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-wrap">{topics[1].sample_answer}</p>
+                  <p className="text-xs text-amber-700 mt-3 italic">
+                    💡 Обрати внимание на структуру (intro → middle → conclusion), линкеры (however, in addition, on the other hand) и idioms.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
