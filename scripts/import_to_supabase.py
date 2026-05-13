@@ -297,11 +297,16 @@ def import_listening(sb: Client, dry: bool = False):
             fname = Path(audio_paths[0]).name
             audio_url = f"{SUPABASE_URL}/storage/v1/object/public/audio/{fname}"
 
+        # section: DB has check constraint (1..4) — IELTS Listening has 4 sections.
+        # Source field "test_position" is actually a test number, not section. Clamp it.
+        raw_section = item.get("test_position")
+        section_val = raw_section if isinstance(raw_section, int) and 1 <= raw_section <= 4 else None
+
         test_row = {
             "external_id":    ext_id,
             "source":         "practicepteonline",
             "title":          title,
-            "section":        item.get("test_position"),
+            "section":        section_val,
             "audio_url":      audio_url,
             "audio_duration": None,
         }
@@ -321,8 +326,8 @@ def import_listening(sb: Client, dry: bool = False):
 
         for gi, qg in enumerate(qgroups):
             r = qg.get("range") or {}
-            q_start = int(String(r.get("start") or 1)) if r else 1
-            q_end   = int(String(r.get("end")   or q_start)) if r else q_start
+            q_start = int(r.get("start") or 1) if r else 1
+            q_end   = int(r.get("end")   or q_start) if r else q_start
             instruction = strip_html(qg.get("instruction") or "")
             q_type = detect_question_type(instruction)
 
@@ -401,6 +406,13 @@ def import_writing(sb: Client, dry: bool = False):
             "min_words":   min_words,
         })
 
+    # Dedupe by external_id (last occurrence wins) — Postgres rejects
+    # ON CONFLICT with duplicate keys in the same statement.
+    seen = {}
+    for r in rows:
+        seen[r["external_id"]] = r
+    rows = list(seen.values())
+
     if dry:
         log.info(f"[DRY] Would upsert {len(rows)} writing tasks")
         return
@@ -408,7 +420,10 @@ def import_writing(sb: Client, dry: bool = False):
     # Batch upsert in chunks of 100
     for i in tqdm(range(0, len(rows), 100), desc="Writing tasks"):
         chunk = rows[i:i+100]
-        sb.table("writing_tasks").upsert(chunk, on_conflict="external_id").execute()
+        _safe_call(
+            lambda c=chunk: sb.table("writing_tasks").upsert(c, on_conflict="external_id").execute(),
+            sb,
+        )
 
     log.info(f"Writing import done: {len(rows)} tasks")
 
@@ -452,13 +467,22 @@ def import_speaking(sb: Client, dry: bool = False):
             "sample_answer":        sample_ans[:5000] if sample_ans else None,
         })
 
+    # Dedupe by external_id
+    seen = {}
+    for r in rows:
+        seen[r["external_id"]] = r
+    rows = list(seen.values())
+
     if dry:
         log.info(f"[DRY] Would upsert {len(rows)} speaking topics")
         return
 
     for i in tqdm(range(0, len(rows), 100), desc="Speaking topics"):
         chunk = rows[i:i+100]
-        sb.table("speaking_topics").upsert(chunk, on_conflict="external_id").execute()
+        _safe_call(
+            lambda c=chunk: sb.table("speaking_topics").upsert(c, on_conflict="external_id").execute(),
+            sb,
+        )
 
     log.info(f"Speaking import done: {len(rows)} topics")
 

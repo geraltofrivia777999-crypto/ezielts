@@ -11,43 +11,110 @@ import {
   XCircle,
   Zap,
   Shield,
+  Sparkles,
+  Users,
+  User as UserIcon,
+  MessageCircle,
+  CreditCard,
   Star,
   ChevronRight,
-  CreditCard,
 } from "lucide-react";
 
 // ─── Plans config ─────────────────────────────────────────────────────────────
 
-const PLANS = [
+// WhatsApp contact — change WA_NUMBER to your real number (digits only, e.g. 77001234567)
+const WA_NUMBER = "77001234567";
+const WA_MSG_GROUP = encodeURIComponent("Здравствуйте! Хочу записаться на групповые занятия EZielts.");
+const WA_MSG_INDIVIDUAL = encodeURIComponent("Здравствуйте! Хочу записаться на индивидуальные занятия EZielts.");
+
+type Billing = "monthly" | "quarterly";
+
+type Plan = {
+  id: "ai" | "group" | "individual";
+  name: string;
+  pricing: Record<Billing, { label: string; subtitle: string; savings?: string; href: string }>;
+  description: string;
+  icon: React.ElementType;
+  iconBg: string;
+  iconColor: string;
+  cta: string;
+  ctaExternal?: boolean;
+  highlight: boolean;
+  tag: string | null;
+  features: string[];
+};
+
+const PLANS: Plan[] = [
   {
-    id: "free",
-    name: "Free",
-    price: { monthly: 0, annual: 0 },
-    description: "Для знакомства с платформой",
-    cta: "Текущий план",
-    ctaHref: "/dashboard",
-    highlight: false,
-    tag: null,
-  },
-  {
-    id: "pro_monthly",
-    name: "Pro",
-    price: { monthly: 8, annual: 8 },
-    description: "Серьёзная подготовка",
-    cta: "Начать Pro",
-    ctaHref: "/checkout?plan=pro_monthly",
+    id: "ai",
+    name: "AI Базовый",
+    pricing: {
+      monthly:   { label: "$8",  subtitle: "/ мес",           href: "/checkout?plan=pro_monthly" },
+      quarterly: { label: "$20", subtitle: "/ 3 мес",  savings: "~$6.67/мес · экономия $4", href: "/checkout?plan=pro_quarterly" },
+    },
+    description: "Полная подготовка с AI-фидбеком",
+    icon: Sparkles,
+    iconBg: "bg-violet-100",
+    iconColor: "text-violet-600",
+    cta: "Начать с AI",
     highlight: true,
-    tag: null,
+    tag: "ПОПУЛЯРНЫЙ",
+    features: [
+      "Безлимит Reading + Listening",
+      "AI Writing Feedback (4 критерия)",
+      "AI Speaking Coach + транскрипт",
+      "Персональный AI-план на 14 дней",
+      "Детальный анализ ошибок",
+      "AI Tutor без ограничений",
+    ],
   },
   {
-    id: "pro_annual",
-    name: "Pro Год",
-    price: { monthly: 4, annual: 48 },
-    description: "Лучшая ценность",
-    cta: "Начать годовой план",
-    ctaHref: "/checkout?plan=pro_annual",
+    id: "group",
+    name: "Групповые",
+    pricing: {
+      monthly:   { label: "от $49",  subtitle: "/ мес",   href: `https://wa.me/${WA_NUMBER}?text=${WA_MSG_GROUP}` },
+      quarterly: { label: "от $129", subtitle: "/ 3 мес", href: `https://wa.me/${WA_NUMBER}?text=${WA_MSG_GROUP}` },
+    },
+    description: "Живые занятия в мини-группах",
+    icon: Users,
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+    cta: "Написать в WhatsApp",
+    ctaExternal: true,
     highlight: false,
-    tag: "ЛУЧШАЯ ЦЕНА",
+    tag: null,
+    features: [
+      "Всё из AI Базовый",
+      "3 онлайн-урока в неделю",
+      "Группы по 5–8 человек",
+      "Преподаватели с IELTS 8+",
+      "Live Speaking практика",
+      "Проверка эссе преподавателем",
+    ],
+  },
+  {
+    id: "individual",
+    name: "Индивидуальные",
+    pricing: {
+      monthly:   { label: "от $120", subtitle: "/ мес",   href: `https://wa.me/${WA_NUMBER}?text=${WA_MSG_INDIVIDUAL}` },
+      quarterly: { label: "от $320", subtitle: "/ 3 мес", href: `https://wa.me/${WA_NUMBER}?text=${WA_MSG_INDIVIDUAL}` },
+    },
+    description: "Персональный преподаватель 1-on-1",
+    icon: UserIcon,
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-600",
+    cta: "Написать в WhatsApp",
+    ctaExternal: true,
+    highlight: false,
+    tag: "МАКС. РЕЗУЛЬТАТ",
+    features: [
+      "Всё из Групповые",
+      "Персональный преподаватель",
+      "Гибкое расписание",
+      "Mock-экзамены с разбором",
+      "Гарантия +1.5 band за 3 мес.",
+      "WhatsApp 24/7 с тьютором",
+    ],
   },
 ];
 
@@ -137,7 +204,7 @@ function FeatureCell({ value }: { value: string | boolean }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PricingPage() {
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [billing, setBilling] = useState<Billing>("monthly");
 
   return (
     <div className="min-h-screen bg-[rgb(var(--background))]">
@@ -162,17 +229,17 @@ export default function PricingPage() {
         <div className="text-center">
           <Badge variant="default" className="mb-4 gap-1.5 py-1 px-3">
             <Zap className="w-3 h-3" />
-            Выбери свой план
+            Выбери свой формат
           </Badge>
           <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--foreground))] mb-3">
             Прозрачные цены, реальный результат
           </h1>
           <p className="text-[rgb(var(--muted-foreground))] max-w-lg mx-auto">
-            Начни бесплатно. Переходи на Pro когда будешь готов — без скрытых платежей, отмена в любой момент.
+            От AI-практики до индивидуальных занятий с преподавателем — выбери что нужно тебе сейчас.
           </p>
 
           {/* Billing toggle */}
-          <div className="inline-flex items-center gap-1 mt-6 bg-[rgb(var(--surface-elevated))] p-1 rounded-xl">
+          <div className="inline-flex items-center gap-1 mt-6 bg-[rgb(var(--surface-elevated))] p-1 rounded-xl border border-[rgb(var(--border))]">
             <button
               onClick={() => setBilling("monthly")}
               className={cn(
@@ -182,19 +249,19 @@ export default function PricingPage() {
                   : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]"
               )}
             >
-              Ежемесячно
+              1 месяц
             </button>
             <button
-              onClick={() => setBilling("annual")}
+              onClick={() => setBilling("quarterly")}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5",
-                billing === "annual"
+                billing === "quarterly"
                   ? "bg-[rgb(var(--surface))] text-[rgb(var(--foreground))] shadow-sm"
                   : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]"
               )}
             >
-              Годовой
-              <span className="text-[10px] font-bold text-white bg-[rgb(var(--secondary))] px-1.5 py-0.5 rounded-full">−50%</span>
+              3 месяца
+              <span className="text-[10px] font-bold text-white bg-[rgb(var(--secondary))] px-1.5 py-0.5 rounded-full">−17%</span>
             </button>
           </div>
         </div>
@@ -202,67 +269,90 @@ export default function PricingPage() {
         {/* Plans grid */}
         <div className="grid md:grid-cols-3 gap-5">
           {PLANS.map((plan) => {
-            const price = billing === "annual" ? plan.price.annual : plan.price.monthly;
-            const isMonthlyDisplay = billing === "monthly" || plan.id === "free";
-
+            const PlanIcon = plan.icon;
+            const isWhatsApp = !!plan.ctaExternal;
+            const price = plan.pricing[billing];
             return (
               <div key={plan.id} className="relative">
                 {plan.tag && (
                   <div
-                    className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white whitespace-nowrap z-10"
-                    style={{ background: "rgb(var(--secondary))" }}
+                    className={cn(
+                      "absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white whitespace-nowrap z-10",
+                      plan.highlight ? "bg-[rgb(var(--primary))]" : "bg-[rgb(var(--secondary))]"
+                    )}
                   >
                     {plan.tag}
                   </div>
                 )}
                 <div
                   className={cn(
-                    "rounded-2xl border bg-[rgb(var(--surface))] p-6 flex flex-col gap-5 h-full transition-all",
+                    "relative rounded-2xl border bg-[rgb(var(--surface))] p-6 flex flex-col gap-5 h-full transition-all overflow-hidden",
                     plan.highlight
                       ? "border-[rgb(var(--primary))] shadow-xl shadow-[rgb(var(--primary)/0.12)]"
-                      : "border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.3)] hover:shadow-sm"
+                      : "border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.3)] hover:shadow-md"
                   )}
                 >
                   {plan.highlight && (
-                    <div className="absolute inset-0 rounded-2xl pointer-events-none"
-                      style={{ background: "linear-gradient(180deg, rgb(var(--primary)/0.04) 0%, transparent 100%)" }} />
+                    <div
+                      className="absolute inset-0 rounded-2xl pointer-events-none"
+                      style={{ background: "linear-gradient(180deg, rgb(var(--primary)/0.05) 0%, transparent 60%)" }}
+                    />
                   )}
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-[rgb(var(--muted-foreground))]">{plan.name}</span>
-                      {plan.highlight && <Badge variant="default" className="text-[10px]">Популярный</Badge>}
+                  <div className="relative">
+                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-4", plan.iconBg)}>
+                      <PlanIcon className={cn("w-6 h-6", plan.iconColor)} strokeWidth={2.25} />
                     </div>
-                    <div className="flex items-end gap-1 mt-1">
-                      <span className="text-4xl font-bold text-[rgb(var(--foreground))]">
-                        {price === 0 ? "Free" : `$${price}`}
-                      </span>
-                      {price > 0 && (
-                        <span className="text-[rgb(var(--muted-foreground))] mb-1 text-sm">
-                          {billing === "annual" && plan.id !== "free" ? "/ год" : "/ мес"}
-                        </span>
-                      )}
+                    <div className="text-lg font-bold text-[rgb(var(--foreground))]">{plan.name}</div>
+                    <p className="text-xs text-[rgb(var(--muted-foreground))] mt-0.5">{plan.description}</p>
+                    <div className="flex items-end gap-1 mt-4">
+                      <span className="text-4xl font-bold text-[rgb(var(--foreground))]">{price.label}</span>
+                      <span className="text-[rgb(var(--muted-foreground))] mb-1 text-sm">{price.subtitle}</span>
                     </div>
-                    {billing === "annual" && plan.id === "pro_annual" && (
-                      <p className="text-xs text-[rgb(var(--success))] mt-0.5">~$4/мес · экономия $48</p>
+                    {price.savings && (
+                      <p className="text-xs text-[rgb(var(--success))] mt-1 font-medium">
+                        {price.savings}
+                      </p>
                     )}
-                    <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1">{plan.description}</p>
                   </div>
 
+                  <ul className="relative flex flex-col gap-2.5 flex-1">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex gap-2 text-sm text-[rgb(var(--foreground))]">
+                        <CheckCircle2 className={cn("w-4 h-4 shrink-0 mt-0.5", plan.iconColor)} />
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
                   <Button
-                    variant={plan.id === "free" ? "outline" : "default"}
-                    className="w-full"
+                    variant={plan.highlight ? "default" : "outline"}
+                    className={cn(
+                      "w-full relative",
+                      isWhatsApp && "bg-[#25D366] hover:bg-[#1faa56] text-white border-[#25D366]"
+                    )}
                     asChild
-                    disabled={plan.id === "free"}
                   >
-                    <Link href={plan.ctaHref} className="flex items-center gap-1.5">
-                      {plan.id !== "free" && <CreditCard className="w-3.5 h-3.5" />}
-                      {plan.cta}
-                    </Link>
+                    {isWhatsApp ? (
+                      <a
+                        href={price.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        {plan.cta}
+                      </a>
+                    ) : (
+                      <Link href={price.href} className="flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5" />
+                        {billing === "quarterly" ? "Оплатить 3 месяца" : plan.cta}
+                      </Link>
+                    )}
                   </Button>
 
-                  {plan.id !== "free" && (
-                    <p className="text-xs text-center text-[rgb(var(--muted-foreground))] -mt-2">
+                  {!isWhatsApp && (
+                    <p className="text-xs text-center text-[rgb(var(--muted-foreground))] -mt-2 relative">
                       Visa · Mastercard · Kaspi · Халык
                     </p>
                   )}
@@ -283,41 +373,6 @@ export default function PricingPage() {
               При подписке на 3 месяца — если band не вырастет на 1 пункт, возвращаем{" "}
               <strong className="text-[rgb(var(--foreground))]">100% оплаты</strong>. Без вопросов.
             </p>
-          </div>
-        </div>
-
-        {/* Feature comparison table */}
-        <div>
-          <h2 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-6 text-center">Полное сравнение планов</h2>
-          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl overflow-hidden">
-            {/* Table header */}
-            <div className="grid grid-cols-3 border-b border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))]">
-              <div className="p-4 text-sm font-semibold text-[rgb(var(--foreground))]">Функция</div>
-              <div className="p-4 text-sm font-semibold text-[rgb(var(--muted-foreground))] text-center">Free</div>
-              <div className="p-4 text-sm font-semibold text-[rgb(var(--primary))] text-center flex items-center justify-center gap-1">
-                <Zap className="w-3.5 h-3.5" />Pro
-              </div>
-            </div>
-            {FEATURES.map(({ label, free, pro, highlight }, i) => (
-              <div
-                key={label}
-                className={cn(
-                  "grid grid-cols-3 border-b border-[rgb(var(--border))] last:border-0 transition-colors",
-                  highlight ? "bg-[rgb(var(--primary)/0.03)]" : i % 2 === 0 ? "" : "bg-[rgb(var(--surface-elevated)/0.5)]"
-                )}
-              >
-                <div className={cn("p-4 text-sm", highlight ? "font-medium text-[rgb(var(--foreground))]" : "text-[rgb(var(--foreground))]")}>
-                  {label}
-                  {highlight && <span className="ml-1.5 text-[10px] text-[rgb(var(--primary))] font-semibold uppercase">Pro</span>}
-                </div>
-                <div className="p-4 text-center flex items-center justify-center">
-                  <FeatureCell value={free} />
-                </div>
-                <div className="p-4 text-center flex items-center justify-center">
-                  <FeatureCell value={pro} />
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 

@@ -17,6 +17,7 @@ import {
   Flag,
   AlertTriangle,
   Info,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getNextListening, saveAttempt } from "@/lib/supabase/queries";
@@ -54,9 +55,20 @@ function mapDbToListeningTest(raw: any): ListeningTest {
   for (const group of raw.question_groups ?? []) {
     const instruction = (group.instruction as string) ?? "";
     for (const q of group.listening_questions ?? []) {
-      const opts: string[] = Array.isArray(q.options) ? q.options
-        : typeof q.options === "object" ? Object.values(q.options as Record<string, string>)
-        : ["A", "B", "C"];
+      // q.options can be: array, object {A: "...", B: "..."}, null, or stringified JSON
+      let raw_opts = q.options;
+      if (typeof raw_opts === "string") {
+        try { raw_opts = JSON.parse(raw_opts); } catch { raw_opts = null; }
+      }
+      let opts: string[];
+      if (Array.isArray(raw_opts)) {
+        opts = raw_opts;
+      } else if (raw_opts && typeof raw_opts === "object") {
+        opts = Object.values(raw_opts as Record<string, string>);
+      } else {
+        // No options (e.g. fill-in-the-blank) — single text input placeholder
+        opts = ["[Введите ответ]"];
+      }
       questions.push({
         id: q.id,
         instruction,
@@ -135,7 +147,7 @@ const FALLBACK_TEST: ListeningTest = {
 
 function AudioPlayer({
   audioUrl,
-  duration,
+  duration: durationProp,
   onTimeUpdate,
   onEnded,
   started,
@@ -153,9 +165,15 @@ function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(1);
   const [ended, setEnded] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(durationProp);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
   // Simulate playback when no real audio
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(0);
+
+  const duration = audioDuration > 0 ? audioDuration : durationProp;
 
   useEffect(() => {
     if (playing && !audioUrl) {
@@ -177,17 +195,44 @@ function AudioPlayer({
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [playing, audioUrl, duration, onTimeUpdate, onEnded]);
 
-  function handlePlayPause() {
-    if (!started) {
-      onStart();
-    }
-    setPlaying((p) => !p);
-    if (audioRef.current) {
-      playing ? audioRef.current.pause() : audioRef.current.play();
+  // Apply volume to audio element on change
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  async function handlePlayPause() {
+    setAudioError(null);
+    if (!started) onStart();
+
+    const el = audioRef.current;
+    if (el && audioUrl) {
+      if (playing) {
+        el.pause();
+        setPlaying(false);
+      } else {
+        try {
+          setLoading(true);
+          await el.play();
+          setPlaying(true);
+        } catch (err) {
+          console.error("[audio play]", err);
+          setAudioError(
+            err instanceof DOMException && err.name === "NotAllowedError"
+              ? "Браузер заблокировал воспроизведение. Кликните по плееру ещё раз."
+              : "Не удалось запустить аудио. Проверьте соединение."
+          );
+          setPlaying(false);
+        } finally {
+          setLoading(false);
+        }
+      }
+    } else {
+      // Simulation mode (no audio URL)
+      setPlaying((p) => !p);
     }
   }
 
-  const progress = (currentTime / duration) * 100;
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-5">
@@ -195,13 +240,31 @@ function AudioPlayer({
         <audio
           ref={audioRef}
           src={audioUrl}
+          preload="auto"
+          onLoadedMetadata={(e) => {
+            const d = e.currentTarget.duration;
+            if (Number.isFinite(d) && d > 0) setAudioDuration(Math.floor(d));
+          }}
           onTimeUpdate={(e) => {
             const t = Math.floor(e.currentTarget.currentTime);
             setCurrentTime(t);
             onTimeUpdate(t);
           }}
-          onEnded={() => { setEnded(true); onEnded(); }}
+          onEnded={() => { setPlaying(false); setEnded(true); onEnded(); }}
+          onError={(e) => {
+            const err = e.currentTarget.error;
+            console.error("[audio error]", err?.code, err?.message);
+            setAudioError(`Ошибка загрузки аудио (код ${err?.code ?? "?"})`);
+          }}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
         />
+      )}
+
+      {audioError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2 mb-3">
+          {audioError}
+        </div>
       )}
 
       {/* IELTS warning */}
@@ -217,7 +280,7 @@ function AudioPlayer({
       <div className="flex items-center gap-4">
         <button
           onClick={handlePlayPause}
-          disabled={ended}
+          disabled={ended || loading}
           className={cn(
             "w-12 h-12 rounded-full flex items-center justify-center transition-all shrink-0",
             ended
@@ -225,7 +288,13 @@ function AudioPlayer({
               : "bg-[rgb(var(--primary))] text-white hover:bg-[rgb(var(--primary)/0.88)] active:scale-95 shadow-md shadow-[rgb(var(--primary)/0.3)]"
           )}
         >
-          {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : playing ? (
+            <Pause className="w-5 h-5" />
+          ) : (
+            <Play className="w-5 h-5 ml-0.5" />
+          )}
         </button>
 
         <div className="flex-1 flex flex-col gap-1.5">
@@ -358,16 +427,47 @@ export default function ListeningTestPage() {
   // Load test from Supabase
   useEffect(() => {
     async function load() {
+      const sb = createClient();
       try {
-        const sb = createClient();
         const { data: { user } } = await sb.auth.getUser();
         if (user) userIdRef.current = user.id;
-        const raw = user ? await getNextListening(sb, user.id) : null;
-        if (raw) {
-          const mapped = mapDbToListeningTest(raw);
-          if (mapped.questions.length > 0) setTest(mapped);
+
+        // Try the rotation RPC first
+        let raw = user ? await getNextListening(sb, user.id) : null;
+
+        // Fallback: pick the first listening test with audio if RPC returned nothing
+        if (!raw) {
+          console.warn("[listening] get_next_listening returned null, falling back to direct query");
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          const { data: tests, error: testErr } = await (sb as any)
+            .from("listening_tests")
+            .select("*, question_groups:listening_question_groups(*, listening_questions(*))")
+            .not("audio_url", "is", null)
+            .order("created_at", { ascending: true })
+            .limit(1);
+          if (testErr) console.error("[listening] direct query error:", testErr);
+          if (tests && tests.length > 0) {
+            raw = tests[0];
+          }
         }
-      } catch { /* use fallback */ }
+
+        if (raw) {
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          const r = raw as any;
+          console.log("[listening] loaded test:", { id: r.id, title: r.title, audio_url: r.audio_url, hasGroups: !!r.question_groups?.length });
+          const mapped = mapDbToListeningTest(raw);
+          console.log("[listening] mapped:", { audioUrl: mapped.audioUrl, questions: mapped.questions.length });
+          if (mapped.questions.length > 0) {
+            setTest(mapped);
+          } else {
+            console.warn("[listening] mapped test has 0 questions — staying on FALLBACK");
+          }
+        } else {
+          console.error("[listening] no test could be loaded — staying on FALLBACK_TEST (no audio)");
+        }
+      } catch (err) {
+        console.error("[listening] load error:", err);
+      }
     }
     load();
   }, []);

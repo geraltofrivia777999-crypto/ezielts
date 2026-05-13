@@ -30,24 +30,37 @@ export function Navbar({ transparent = false }: NavbarProps) {
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-center gap-5 lg:gap-6">
           <Link
-            href="#features"
+            href="/skills/speaking"
             className="text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-colors"
           >
-            Возможности
+            Speaking
           </Link>
           <Link
-            href="#pricing"
+            href="/skills/writing"
+            className="text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-colors"
+          >
+            Writing
+          </Link>
+          <Link
+            href="/skills/listening"
+            className="text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-colors"
+          >
+            Listening
+          </Link>
+          <Link
+            href="/skills/reading"
+            className="text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-colors"
+          >
+            Reading
+          </Link>
+          <span className="w-px h-4 bg-[rgb(var(--border))]" aria-hidden />
+          <Link
+            href="/pricing"
             className="text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-colors"
           >
             Тарифы
-          </Link>
-          <Link
-            href="#faq"
-            className="text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-colors"
-          >
-            FAQ
           </Link>
         </div>
 

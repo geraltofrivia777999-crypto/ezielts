@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getTutorMessages } from "@/lib/supabase/queries";
+import { AppShell } from "@/components/layout/app-shell";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -184,17 +185,12 @@ export default function TutorPage() {
   const remainingFree = Math.max(0, FREE_LIMIT - usedCount);
 
   return (
-    <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))] px-4 py-3 flex items-center gap-3">
-        <Link href="/dashboard">
-          <Button variant="ghost" size="icon" className="shrink-0">
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-        </Link>
-
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[rgb(var(--primary))] to-[rgb(var(--secondary))] flex items-center justify-center shrink-0">
-          <Bot className="w-4 h-4 text-white" />
+    <AppShell title="AI Тьютор">
+      <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm overflow-hidden flex flex-col" style={{ minHeight: "calc(100vh - 8rem)" }}>
+      {/* Sub-header */}
+      <div className="bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))] px-5 py-4 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[rgb(var(--primary))] to-[rgb(var(--secondary))] flex items-center justify-center shrink-0">
+          <Bot className="w-5 h-5 text-white" />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -216,10 +212,10 @@ export default function TutorPage() {
             <div className="text-xs text-[rgb(var(--muted-foreground))]">бесплатно</div>
           </div>
         )}
-      </header>
+      </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 w-full">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -348,6 +344,7 @@ export default function TutorPage() {
           </p>
         )}
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }

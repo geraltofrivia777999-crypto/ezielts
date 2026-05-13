@@ -9,7 +9,7 @@ export default async function AdminUsersPage() {
   const { data: users } = await (sb as any)
     .from("profiles")
     .select(`
-      id, name, email, target_band, exam_type, exam_date, created_at,
+      id, name, email, phone, target_band, exam_type, exam_date, created_at,
       band_reading, band_listening, band_writing, band_speaking,
       subscriptions ( plan, status )
     `)
@@ -20,6 +20,7 @@ export default async function AdminUsersPage() {
     id: string;
     name: string | null;
     email: string;
+    phone: string | null;
     target_band: number | null;
     exam_type: string;
     exam_date: string | null;
@@ -47,6 +48,7 @@ export default async function AdminUsersPage() {
               <tr>
                 <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Имя</th>
                 <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Email</th>
+                <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">WhatsApp</th>
                 <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">План</th>
                 <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Цель</th>
                 <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">R / L / W / S</th>
@@ -62,6 +64,20 @@ export default async function AdminUsersPage() {
                   <tr key={u.id} className="border-b border-[rgb(var(--border))] last:border-0 hover:bg-[rgb(var(--muted)/0.03)]">
                     <td className="p-3 text-[rgb(var(--foreground))] font-medium">{u.name ?? "—"}</td>
                     <td className="p-3 text-[rgb(var(--muted-foreground))]">{u.email}</td>
+                    <td className="p-3">
+                      {u.phone ? (
+                        <a
+                          href={`https://wa.me/${u.phone.replace(/[^0-9]/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[#25D366] hover:underline font-mono text-xs"
+                        >
+                          {u.phone}
+                        </a>
+                      ) : (
+                        <span className="text-[rgb(var(--muted))]">—</span>
+                      )}
+                    </td>
                     <td className="p-3">
                       <Badge variant={plan === "free" ? "secondary" : "default"}>
                         {plan}

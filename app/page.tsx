@@ -161,6 +161,58 @@ const FAQ = [
   },
 ];
 
+// ─── Skill card for hero ─────────────────────────────────────────────────────
+
+function SkillCard({
+  icon: Icon,
+  title,
+  subtitle,
+  iconBg,
+  iconColor,
+}: {
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  iconBg: string;
+  iconColor: string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl p-6 sm:p-7 flex flex-col items-center text-center shadow-xl shadow-black/10">
+      <div className={`w-14 h-14 rounded-xl ${iconBg} flex items-center justify-center mb-4`}>
+        <Icon className={`w-7 h-7 ${iconColor}`} strokeWidth={2} />
+      </div>
+      <h3 className="font-bold text-[rgb(var(--foreground))] text-base mb-1">{title}</h3>
+      <p className="text-xs text-[rgb(var(--muted-foreground))]">{subtitle}</p>
+    </div>
+  );
+}
+
+function FreeOfferCard({
+  icon: Icon,
+  title,
+  subtitle,
+  iconBg,
+  iconColor,
+  iconRing,
+}: {
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  iconBg: string;
+  iconColor: string;
+  iconRing: string;
+}) {
+  return (
+    <div className="group relative bg-white rounded-2xl p-5 sm:p-6 flex flex-col shadow-[0_2px_12px_-4px_rgba(15,15,40,0.08)] hover:shadow-[0_12px_32px_-8px_rgba(108,99,255,0.18)] hover:-translate-y-0.5 transition-all duration-300 border border-[rgba(108,99,255,0.06)]">
+      <div className={`w-12 h-12 rounded-xl ${iconBg} ${iconRing} flex items-center justify-center mb-4 ring-1 ring-inset transition-transform duration-300 group-hover:scale-105`}>
+        <Icon className={`w-[22px] h-[22px] ${iconColor}`} strokeWidth={2.25} />
+      </div>
+      <h3 className="font-bold text-[rgb(var(--foreground))] text-[15px] mb-1 tracking-tight">{title}</h3>
+      <p className="text-[13px] text-[rgb(var(--muted-foreground))] leading-snug">{subtitle}</p>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default async function LandingPage({
@@ -179,96 +231,80 @@ export default async function LandingPage({
       <Navbar />
 
       {/* ── HERO ── */}
-      <section className="relative pt-24 pb-20 md:pt-36 md:pb-28 overflow-hidden">
-        {/* Background gradient blobs */}
+      <section className="relative overflow-hidden bg-[#3B1E91]">
+        {/* Subtle gradient orbs */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full opacity-[0.07]"
-          style={{
-            background:
-              "radial-gradient(circle, rgb(var(--primary)) 0%, transparent 70%)",
-          }}
+          className="pointer-events-none absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full opacity-30"
+          style={{ background: "radial-gradient(circle, #6C63FF 0%, transparent 70%)" }}
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute top-0 right-0 w-[400px] h-[400px] rounded-full opacity-[0.05]"
-          style={{
-            background:
-              "radial-gradient(circle, rgb(var(--secondary)) 0%, transparent 70%)",
-          }}
+          className="pointer-events-none absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full opacity-20"
+          style={{ background: "radial-gradient(circle, #8B7CF6 0%, transparent 70%)" }}
         />
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="max-w-3xl">
-            {/* Social proof chip */}
-            <div className="flex items-center gap-2 mb-6">
-              <Badge variant="default" className="gap-1.5 py-1 px-3">
-                <Star className="w-3 h-3 fill-current" />
-                <span>3 000+ студентов из СНГ</span>
-              </Badge>
-            </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-20 md:pt-32 md:pb-28">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left: copy */}
+            <div className="text-white">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-[1.05] tracking-tight mb-6">
+                Сдай IELTS на{" "}
+                <span className="block sm:inline text-[#B8A9FF]">нужный балл</span>{" "}
+                <span className="block sm:inline">с первого раза</span>
+              </h1>
 
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-[1.1] tracking-tight text-[rgb(var(--foreground))] mb-6">
-              Сдай IELTS{" "}
-              <span
-                className="relative inline-block"
-                style={{ color: "rgb(var(--primary))" }}
-              >
-                с первого раза
-                {/* underline decoration */}
-                <svg
-                  aria-hidden
-                  className="absolute -bottom-2 left-0 w-full"
-                  viewBox="0 0 300 12"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
+              <p className="text-lg sm:text-xl text-white/80 leading-relaxed mb-8 max-w-lg">
+                Достигни цели с моментальной точной оценкой и персональным
+                отслеживанием прогресса.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 mb-10">
+                <Link
+                  href="/diagnostic"
+                  className="inline-flex items-center justify-center gap-2 bg-white text-[#3B1E91] font-semibold text-base px-7 py-4 rounded-xl hover:bg-white/95 transition-colors shadow-xl shadow-black/10"
                 >
-                  <path
-                    d="M2 8 C50 2, 150 14, 298 6"
-                    stroke="rgb(var(--secondary))"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </span>
-            </h1>
-
-            <p className="text-lg sm:text-xl text-[rgb(var(--muted-foreground))] leading-relaxed mb-8 max-w-xl">
-              Реальные тесты, AI-фидбек по writing и speaking, персональный план
-              подготовки. Гарантия{" "}
-              <strong className="text-[rgb(var(--foreground))]">
-                +1 балл за 3 месяца
-              </strong>{" "}
-              или возврат денег.
-            </p>
-
-            {/* CTA buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-10">
-              <Button size="xl" asChild className="shadow-lg shadow-[rgb(var(--primary)/0.25)]">
-                <Link href="/diagnostic">
-                  Узнай свой уровень за 15 минут
+                  Узнай свой балл бесплатно
                   <ChevronRight className="w-5 h-5" />
                 </Link>
-              </Button>
-              <Button size="xl" variant="outline" asChild>
-                <Link href="#features">Как это работает</Link>
-              </Button>
+              </div>
+
+              {/* Trust card */}
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 max-w-md">
+                <div className="grid grid-cols-2 gap-y-2 gap-x-6 mb-3">
+                  <div className="flex items-center gap-2 text-sm text-white/90">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#B8A9FF]" />
+                    98% точность
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-white/90">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#B8A9FF]" />
+                    Реальные экзамены
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-white/90">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#B8A9FF]" />
+                    Тысячи студентов
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-white/90">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#B8A9FF]" />
+                    AI оценка Speaking
+                  </div>
+                </div>
+                <div className="text-white font-semibold text-sm mb-1">
+                  EZielts AI Score = Real IELTS Score
+                </div>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  Используем данные реальных экзаменов чтобы дать тебе тот же балл,
+                  что ты получишь на тесте.
+                </p>
+              </div>
             </div>
 
-            {/* Trust signals */}
-            <div className="flex flex-wrap gap-5 text-sm text-[rgb(var(--muted-foreground))]">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))]" />
-                Без регистрации для диагностики
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))]" />
-                Бесплатный план навсегда
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))]" />
-                Данные карты не нужны
-              </span>
+            {/* Right: 4 skill cards */}
+            <div className="grid grid-cols-2 gap-4 sm:gap-5">
+              <SkillCard icon={Mic2} title="Speaking" subtitle="2 бесплатных оценки в день" iconBg="bg-amber-100" iconColor="text-amber-500" />
+              <SkillCard icon={PenLine} title="Writing" subtitle="2 бесплатных оценки в день" iconBg="bg-violet-100" iconColor="text-violet-500" />
+              <SkillCard icon={Headphones} title="Listening" subtitle="Вопросы уровня Cambridge" iconBg="bg-green-100" iconColor="text-green-500" />
+              <SkillCard icon={BookOpen} title="Reading" subtitle="Вопросы уровня Cambridge" iconBg="bg-blue-100" iconColor="text-blue-500" />
             </div>
           </div>
         </div>
@@ -390,6 +426,127 @@ export default async function LandingPage({
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── FREE OFFER BLOCK ── */}
+      <section className="py-20 bg-[rgb(var(--background))]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="relative rounded-[28px] bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/60 border border-violet-100/70 p-8 md:p-14 overflow-hidden shadow-[0_4px_24px_-12px_rgba(108,99,255,0.15)]">
+            {/* Decorative blob */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -top-24 -right-24 w-[400px] h-[400px] rounded-full opacity-40"
+              style={{ background: "radial-gradient(circle, rgba(184,169,255,0.4) 0%, transparent 70%)" }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-32 -left-32 w-[400px] h-[400px] rounded-full opacity-30"
+              style={{ background: "radial-gradient(circle, rgba(108,99,255,0.25) 0%, transparent 70%)" }}
+            />
+
+            <div className="relative grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
+              {/* Left: copy */}
+              <div>
+                <div className="text-xs font-bold tracking-widest text-[rgb(var(--primary))] mb-4">
+                  БЕСПЛАТНО — БЕЗ КАРТЫ
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold text-[rgb(var(--foreground))] leading-tight mb-4">
+                  Не готов платить?{" "}
+                  <br className="hidden md:block" />
+                  Начни бесплатно.
+                </h2>
+                <p className="text-base md:text-lg text-[rgb(var(--muted-foreground))] leading-relaxed mb-8">
+                  По одному бесплатному тесту каждого типа в день, AI-фидбек по
+                  writing и speaking, и 15-минутная диагностика без регистрации.
+                  Никаких скрытых платежей.
+                </p>
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center gap-2 bg-[rgb(var(--primary))] text-white font-semibold text-base px-7 py-4 rounded-xl hover:bg-[rgb(var(--primary)/0.92)] transition-colors shadow-lg shadow-[rgb(var(--primary)/0.25)]"
+                >
+                  Начать бесплатно
+                  <ChevronRight className="w-5 h-5" />
+                </Link>
+              </div>
+
+              {/* Right: 6 feature cards (2x3) */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <FreeOfferCard
+                  icon={BookOpen}
+                  title="Reading"
+                  subtitle="1 бесплатный тест в день"
+                  iconBg="bg-gradient-to-br from-blue-50 to-blue-100"
+                  iconColor="text-blue-600"
+                  iconRing="ring-blue-200/60"
+                />
+                <FreeOfferCard
+                  icon={Headphones}
+                  title="Listening"
+                  subtitle="Аудио уровня Cambridge"
+                  iconBg="bg-gradient-to-br from-emerald-50 to-emerald-100"
+                  iconColor="text-emerald-600"
+                  iconRing="ring-emerald-200/60"
+                />
+                <FreeOfferCard
+                  icon={PenLine}
+                  title="Writing"
+                  subtitle="AI-фидбек по 4 критериям"
+                  iconBg="bg-gradient-to-br from-violet-50 to-violet-100"
+                  iconColor="text-violet-600"
+                  iconRing="ring-violet-200/60"
+                />
+                <FreeOfferCard
+                  icon={Mic2}
+                  title="Speaking"
+                  subtitle="AI оценка + транскрипт"
+                  iconBg="bg-gradient-to-br from-amber-50 to-amber-100"
+                  iconColor="text-amber-600"
+                  iconRing="ring-amber-200/60"
+                />
+                <FreeOfferCard
+                  icon={Zap}
+                  title="Диагностика"
+                  subtitle="15 минут без регистрации"
+                  iconBg="bg-gradient-to-br from-pink-50 to-pink-100"
+                  iconColor="text-pink-600"
+                  iconRing="ring-pink-200/60"
+                />
+                <FreeOfferCard
+                  icon={Star}
+                  title="AI Tutor"
+                  subtitle="3 бесплатных вопроса"
+                  iconBg="bg-gradient-to-br from-teal-50 to-teal-100"
+                  iconColor="text-teal-600"
+                  iconRing="ring-teal-200/60"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TELEGRAM CTA ── */}
+      <section className="bg-[#241682] py-10">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-2 leading-tight">
+            Присоединяйся к ученикам, которые уже растут.
+          </h2>
+          <p className="text-sm text-white/70 mb-5 max-w-xl mx-auto leading-relaxed">
+            Ежедневные подсказки, разборы вопросов и истории как другие идут от{" "}
+            <span className="font-mono">6.5 → 8.0</span>.
+          </p>
+          <a
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-[#229ED9] hover:bg-[#1d8cc0] text-white font-semibold text-sm px-5 py-2.5 rounded-full transition-colors shadow-md shadow-[#229ED9]/30"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" />
+            </svg>
+            Вступить в Telegram
+          </a>
         </div>
       </section>
 

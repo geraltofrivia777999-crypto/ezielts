@@ -24,6 +24,7 @@ import {
   Flame,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AppShell } from "@/components/layout/app-shell";
 
 type Profile = {
   name: string | null;
@@ -185,17 +186,21 @@ export default function PlanPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-[rgb(var(--primary))]" />
-      </div>
+      <AppShell title="AI план">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin text-[rgb(var(--primary))]" />
+        </div>
+      </AppShell>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center">
-        <Link href="/login"><Button>Войти</Button></Link>
-      </div>
+      <AppShell title="AI план">
+        <div className="flex items-center justify-center py-20">
+          <Link href="/login"><Button>Войти</Button></Link>
+        </div>
+      </AppShell>
     );
   }
 
@@ -217,23 +222,13 @@ export default function PlanPage() {
   ] as SkillRow[]).sort((a, b) => (b.band || 0) - (a.band || 0));
 
   return (
-    <div className="min-h-screen bg-[rgb(var(--background))]">
-      <header className="sticky top-0 z-40 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
-            <ChevronLeft className="w-4 h-4" />Dashboard
-          </Link>
-          <div className="flex items-center gap-2 ml-2">
-            <Star className="w-4 h-4 text-amber-500" />
-            <span className="font-semibold text-[rgb(var(--foreground))]">Персональный план</span>
+    <AppShell title="AI план">
+      <div className="max-w-5xl mx-auto flex flex-col gap-6">
+        {!isPro && (
+          <div className="flex justify-end">
+            <Badge variant="secondary">Free preview</Badge>
           </div>
-          {!isPro && (
-            <Badge variant="secondary" className="ml-auto">Free preview</Badge>
-          )}
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 py-8 flex flex-col gap-6">
+        )}
 
         {/* Pro lock banner */}
         {!isPro && (
@@ -477,7 +472,7 @@ export default function PlanPage() {
           </CardContent>
         </Card>
 
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

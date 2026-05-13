@@ -21,8 +21,10 @@ import {
   Check,
   AlertTriangle,
   Crown,
+  MessageCircle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AppShell } from "@/components/layout/app-shell";
 
 const TARGET_BANDS = [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0];
 const EXAM_TYPES = [
@@ -40,6 +42,7 @@ const GOALS = [
 type Profile = {
   name: string;
   email: string;
+  phone: string;
   target_band: number | null;
   exam_type: string;
   exam_date: string | null;
@@ -57,6 +60,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile>({
     name: "",
     email: "",
+    phone: "",
     target_band: 7.0,
     exam_type: "unknown",
     exam_date: null,
@@ -82,7 +86,7 @@ export default function SettingsPage() {
       /* eslint-disable @typescript-eslint/no-explicit-any */
       const { data } = await (sb as any)
         .from("profiles")
-        .select("name, email, target_band, exam_type, exam_date, goal, subscriptions(plan)")
+        .select("name, email, phone, target_band, exam_type, exam_date, goal, subscriptions(plan)")
         .eq("id", user.id)
         .single();
 
@@ -90,6 +94,7 @@ export default function SettingsPage() {
         setProfile({
           name: data.name ?? "",
           email: data.email ?? user.email ?? "",
+          phone: data.phone ?? "",
           target_band: data.target_band ?? 7.0,
           exam_type: data.exam_type ?? "unknown",
           exam_date: data.exam_date ?? null,
@@ -117,6 +122,7 @@ export default function SettingsPage() {
       .from("profiles")
       .update({
         name: profile.name,
+        phone: profile.phone.trim() || null,
         target_band: profile.target_band,
         exam_type: profile.exam_type,
         exam_date: profile.exam_date || null,
@@ -172,28 +178,17 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-[rgb(var(--primary))]" />
-      </div>
+      <AppShell title="Настройки">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin text-[rgb(var(--primary))]" />
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[rgb(var(--background))]">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
-            <ChevronLeft className="w-4 h-4" />Dashboard
-          </Link>
-          <div className="flex items-center gap-2 ml-2">
-            <SettingsIcon className="w-4 h-4 text-[rgb(var(--primary))]" />
-            <span className="font-semibold text-[rgb(var(--foreground))]">Настройки</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
+    <AppShell title="Настройки">
+      <div className="max-w-3xl mx-auto flex flex-col gap-6">
 
         {/* Subscription */}
         <Card>
@@ -263,6 +258,22 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1">
                   Для смены email напишите в поддержку
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-[rgb(var(--muted-foreground))] mb-1.5 block flex items-center gap-1.5">
+                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />WhatsApp
+                </label>
+                <Input
+                  type="tel"
+                  placeholder="+7 700 000 00 00"
+                  value={profile.phone}
+                  onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))}
+                  inputMode="tel"
+                />
+                <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1">
+                  Для связи в WhatsApp — без верификации
                 </p>
               </div>
 
@@ -409,7 +420,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

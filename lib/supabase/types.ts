@@ -20,6 +20,7 @@ export interface Database {
           id: string;
           name: string | null;
           email: string | null;
+          phone: string | null;
           avatar_url: string | null;
           target_band: number | null;
           exam_type: ExamType | null;

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Eye, EyeOff, Mail, Lock, User, ChevronRight, Target, CheckCircle2, MailCheck } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, ChevronRight, Target, MailCheck, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const TARGET_BANDS = [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0];
@@ -28,6 +28,7 @@ export default function SignupPage() {
   // Account fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
 
   // Onboarding fields
@@ -86,6 +87,7 @@ export default function SignupPage() {
       /* eslint-disable @typescript-eslint/no-explicit-any */
       await (sb as any).from("profiles").update({
         name,
+        phone: phone.trim() || null,
         target_band: targetBand,
         exam_type: examType ? examTypeMap[examType] : "unknown",
         goal,
@@ -175,6 +177,23 @@ export default function SignupPage() {
                   required
                   autoComplete="email"
                 />
+              </div>
+              <div>
+                <div className="relative">
+                  <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#25D366]" />
+                  <Input
+                    type="tel"
+                    placeholder="+7 700 000 00 00 (WhatsApp)"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="pl-9"
+                    autoComplete="tel"
+                    inputMode="tel"
+                  />
+                </div>
+                <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1 ml-1">
+                  Для связи в WhatsApp — без верификации
+                </p>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--muted))]" />

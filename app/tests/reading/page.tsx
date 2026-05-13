@@ -64,7 +64,19 @@ function mapDbToTest(raw: any): ReadingTest {
       const instruction = (group.instruction as string) ?? "";
       const qType: "mcq" | "tfng" = group.question_type === "tfng" ? "tfng" : "mcq";
       for (const q of group.reading_questions ?? []) {
-        const opts: string[] = Array.isArray(q.options) ? q.options : (typeof q.options === "object" ? Object.values(q.options as Record<string, string>) : ["A", "B", "C", "D"]);
+        // q.options can be: array, object, null, or stringified JSON
+        let raw_opts = q.options;
+        if (typeof raw_opts === "string") {
+          try { raw_opts = JSON.parse(raw_opts); } catch { raw_opts = null; }
+        }
+        let opts: string[];
+        if (Array.isArray(raw_opts)) {
+          opts = raw_opts;
+        } else if (raw_opts && typeof raw_opts === "object") {
+          opts = Object.values(raw_opts as Record<string, string>);
+        } else {
+          opts = qType === "tfng" ? ["TRUE", "FALSE", "NOT GIVEN"] : ["A", "B", "C", "D"];
+        }
         questions.push({
           id: q.id,
           type: qType,
