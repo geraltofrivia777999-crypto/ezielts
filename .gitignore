@@ -43,3 +43,6 @@ next-env.d.ts
 # python bytecode
 __pycache__/
 *.pyc
+
+# Claude Code worktrees
+.claude/worktrees/

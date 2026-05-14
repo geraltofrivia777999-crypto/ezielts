@@ -127,9 +127,41 @@ export async function getListeningTest(sb: SB, testId: string) {
     .from("listening_question_groups")
     .select("*, listening_questions(*)")
     .eq("test_id", testId)
+    .order("section_number", { ascending: true, nullsFirst: false })
     .order("sort_order");
 
   return { ...(test as object), question_groups: (groups ?? []) as any[] };
+}
+
+// Reading mock test (3 passages combined IELTS-style)
+export async function getReadingMockTest(sb: SB, mockId: string) {
+  const { data: mock } = await (sb as any)
+    .from("reading_mock_tests")
+    .select("*")
+    .eq("id", mockId)
+    .single();
+  if (!mock) return null;
+
+  const testIds = (mock.test_ids ?? []) as string[];
+  const tests = await Promise.all(testIds.map((id) => getReadingTest(sb, id)));
+  return {
+    id: mock.id,
+    title: mock.title,
+    category: mock.category,
+    passages: tests.filter(Boolean),
+    total_questions: mock.total_questions,
+  };
+}
+
+export async function getRandomReadingMock(sb: SB, category: "academic" | "general" = "academic") {
+  const { data } = await (sb as any)
+    .from("reading_mock_tests")
+    .select("id")
+    .eq("category", category)
+    .limit(50);
+  if (!data || data.length === 0) return null;
+  const random = data[Math.floor(Math.random() * data.length)];
+  return getReadingMockTest(sb, random.id);
 }
 
 export async function getWritingTask(sb: SB, taskId: string) {

@@ -17,6 +17,8 @@ import {
   RotateCcw,
   Loader2,
   ChevronDown,
+  MessageCircle,
+  ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getNextWriting } from "@/lib/supabase/queries";
@@ -87,7 +89,8 @@ export default function WritingTestPage() {
   const [task, setTask] = useState<WritingTask>(FALLBACK_TASK);
   const [taskLoading, setTaskLoading] = useState(true);
   const [text, setText] = useState("");
-  const [phase, setPhase] = useState<"write" | "loading" | "feedback">("write");
+  const [phase, setPhase] = useState<"intro" | "write" | "loading" | "feedback">("intro");
+  const [preferredTaskType, setPreferredTaskType] = useState<"task1" | "task2" | null>(null);
   const [loadingText, setLoadingText] = useState("");
   const [feedback, setFeedback] = useState<WritingFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -110,20 +113,21 @@ export default function WritingTestPage() {
     : "text-[rgb(var(--muted-foreground))]";
   const taskTypeLabel = task.task_type === "task1" ? "Task 1" : "Task 2";
 
-  // ── Load task from Supabase ──
+  // ── Load task from Supabase (refetch when preferredTaskType changes) ──
   useEffect(() => {
     async function loadTask() {
       try {
+        setTaskLoading(true);
         const sb = createClient();
         const { data: { user } } = await sb.auth.getUser();
         if (!user) { setTaskLoading(false); return; }
-        const next = await getNextWriting(sb, user.id);
+        const next = await getNextWriting(sb, user.id, preferredTaskType ?? undefined);
         if (next) setTask(next);
       } catch { /* use fallback */ }
       finally { setTaskLoading(false); }
     }
     loadTask();
-  }, []);
+  }, [preferredTaskType]);
 
   const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -401,6 +405,94 @@ export default function WritingTestPage() {
     );
   }
 
+  // ── INTRO phase: pre-test landing ──
+  if (phase === "intro") {
+    const examLabel = task.exam_type === "general" ? "General Training" : "Academic";
+    return (
+      <div className="min-h-screen bg-[rgb(var(--background))]">
+        <header className="sticky top-0 z-40 bg-white border-b border-[rgb(var(--border))]">
+          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
+              <ChevronLeft className="w-4 h-4" />Dashboard
+            </Link>
+            <div className="flex items-center gap-2 ml-2">
+              <PenLine className="w-4 h-4 text-violet-500" />
+              <span className="font-semibold text-[rgb(var(--foreground))]">Writing Test</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-2xl mx-auto px-4 py-8">
+          <div className="bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm p-8 flex flex-col items-center text-center gap-6">
+            <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <PenLine className="w-8 h-8 text-violet-500" />
+            </div>
+
+            <div>
+              <h1 className="text-3xl font-bold text-[rgb(var(--foreground))] mb-2">IELTS {examLabel} Writing</h1>
+              <p className="text-sm text-[rgb(var(--muted-foreground))]">
+                2 задания: описание графика и эссе
+              </p>
+            </div>
+
+            <div className="flex gap-8">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-violet-500">60 мин</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))]">Время</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-violet-500">2</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))]">Заданий</div>
+              </div>
+            </div>
+
+            <div className="text-left w-full">
+              <h2 className="font-semibold text-[rgb(var(--foreground))] mb-3">Формат теста</h2>
+              <ul className="space-y-2 text-sm text-[rgb(var(--muted-foreground))]">
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Task 1: Описание визуальной информации (графики, диаграммы) — 150+ слов</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Task 2: Эссе в ответ на точку зрения или аргумент — 250+ слов</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Оценка: Task Achievement, Coherence, Vocabulary, Grammar</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Task 2 оценивается вдвое выше, чем Task 1</li>
+              </ul>
+            </div>
+
+            <div className="w-full bg-[rgb(var(--muted)/0.05)] rounded-lg px-4 py-2.5 text-xs text-[rgb(var(--muted-foreground))] text-center">
+              🌐 Тест проводится полностью на английском языке
+            </div>
+
+            <button
+              onClick={() => { setPreferredTaskType(null); setPhase("write"); }}
+              className="w-full bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary)/0.92)] text-white font-semibold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md shadow-[rgb(var(--primary)/0.25)]"
+            >
+              Начать тест Writing
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <div className="relative w-full flex items-center gap-3">
+              <div className="flex-1 h-px bg-[rgb(var(--border))]" />
+              <span className="text-[10px] uppercase tracking-widest text-[rgb(var(--muted-foreground))]">Или практикуйте по заданию</span>
+              <div className="flex-1 h-px bg-[rgb(var(--border))]" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 w-full">
+              <button
+                onClick={() => { setPreferredTaskType("task1"); setPhase("write"); }}
+                className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
+              >
+                Task 1
+              </button>
+              <button
+                onClick={() => { setPreferredTaskType("task2"); setPhase("write"); }}
+                className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
+              >
+                Task 2
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // ── Loading phase ──
   if (phase === "loading") {
     return (
@@ -442,6 +534,18 @@ export default function WritingTestPage() {
             <Clock className={cn("w-3.5 h-3.5", lowTime ? "text-[rgb(var(--destructive))]" : "text-[rgb(var(--warning))]")} />
             {mmss(timeLeft)}
           </div>
+          <button
+            onClick={() => {
+              const params = new URLSearchParams({
+                q: `Помоги с Writing ${taskTypeLabel}: "${task.prompt_text?.slice(0, 300) ?? ""}". Подскажи структуру ответа, какие linking words использовать, и какие grammar-конструкции покажут Band 7+.`,
+              });
+              window.open(`/tutor?${params.toString()}`, "_blank");
+            }}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors shrink-0"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            Спросить ИИ
+          </button>
           <Button size="sm" disabled={isUnderMin} onClick={handleSubmit} className="shrink-0 gap-1.5">
             <Zap className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">AI Feedback</span>
