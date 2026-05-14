@@ -18,7 +18,9 @@ import {
   Loader2,
   AlertCircle,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSpeakingTopics } from "@/lib/supabase/queries";
 import type { Database } from "@/lib/supabase/types";
@@ -109,15 +111,16 @@ function CriteriaBar({ band, label }: { band: number; label: string }) {
   );
 }
 
-type Phase = "intro" | "prep" | "recording" | "recorded" | "loading" | "feedback";
+type Phase = "landing" | "intro" | "prep" | "recording" | "recorded" | "loading" | "feedback";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SpeakingTestPage() {
+  const router = useRouter();
   const [topics, setTopics] = useState(FALLBACK_TOPICS as any[]);
   const [partIdx, setPartIdx] = useState(0);
   const [questionIdx, setQuestionIdx] = useState(0);
-  const [phase, setPhase] = useState<Phase>("intro");
+  const [phase, setPhase] = useState<Phase>("landing");
   const [prepTime, setPrepTime] = useState(60);
   const [recordTime, setRecordTime] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -455,6 +458,88 @@ export default function SpeakingTestPage() {
   const currentQuestions = part?.questions as string[] | undefined;
   const cuePoints = part?.cue_card_points as string[] | undefined;
 
+  // ── LANDING phase (pre-test) ──
+  if (phase === "landing") {
+    return (
+      <div className="min-h-screen bg-[rgb(var(--background))]">
+        <header className="sticky top-0 z-40 bg-white border-b border-[rgb(var(--border))]">
+          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
+              <ChevronLeft className="w-4 h-4" />Dashboard
+            </Link>
+            <div className="flex items-center gap-2 ml-2">
+              <Mic2 className="w-4 h-4 text-violet-500" />
+              <span className="font-semibold text-[rgb(var(--foreground))]">Speaking Test</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-2xl mx-auto px-4 py-8">
+          <div className="bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm p-8 flex flex-col items-center text-center gap-6">
+            <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <Mic2 className="w-8 h-8 text-violet-500" />
+            </div>
+
+            <div>
+              <h1 className="text-3xl font-bold text-[rgb(var(--foreground))] mb-2">IELTS Speaking</h1>
+              <p className="text-sm text-[rgb(var(--muted-foreground))]">3 части: интервью, монолог и дискуссия</p>
+            </div>
+
+            <div className="flex gap-8">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-violet-500">~12 мин</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))]">Время</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-violet-500">3</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))]">Частей</div>
+              </div>
+            </div>
+
+            <div className="text-left w-full">
+              <h2 className="font-semibold text-[rgb(var(--foreground))] mb-3">Формат теста</h2>
+              <ul className="space-y-2 text-sm text-[rgb(var(--muted-foreground))]">
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Part 1: Введение и интервью (5 минут)</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Part 2: Развёрнутый ответ по карточке (1 мин подготовка + 2 мин)</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Part 3: Двусторонняя дискуссия (5 минут)</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Оценка: Fluency, Vocabulary, Grammar, Pronunciation</li>
+              </ul>
+            </div>
+
+            <div className="w-full bg-[rgb(var(--muted)/0.05)] rounded-lg px-4 py-2.5 text-xs text-[rgb(var(--muted-foreground))] text-center">
+              🌐 Тест проводится полностью на английском языке
+            </div>
+
+            <button
+              onClick={() => { setPartIdx(0); setQuestionIdx(0); setPhase("intro"); }}
+              className="w-full bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary)/0.92)] text-white font-semibold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md shadow-[rgb(var(--primary)/0.25)]"
+            >
+              Начать тест Speaking
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <div className="relative w-full flex items-center gap-3">
+              <div className="flex-1 h-px bg-[rgb(var(--border))]" />
+              <span className="text-[10px] uppercase tracking-widest text-[rgb(var(--muted-foreground))]">Или практикуйте по частям</span>
+              <div className="flex-1 h-px bg-[rgb(var(--border))]" />
+            </div>
+            <div className="grid grid-cols-3 gap-2 w-full">
+              {[0, 1, 2].map((i) => (
+                <button
+                  key={i}
+                  onClick={() => { setPartIdx(i); setQuestionIdx(0); setPhase("intro"); }}
+                  className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
+                >
+                  Part {i + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
       <header className="sticky top-0 z-40 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
@@ -508,6 +593,19 @@ export default function SpeakingTestPage() {
                     {questionIdx + 1}
                   </span>
                   <span className="text-xs text-[rgb(var(--muted-foreground))]">из {currentQuestions.length} вопросов</span>
+                  <button
+                    onClick={() => {
+                      const q = currentQuestions[questionIdx];
+                      const params = new URLSearchParams({
+                        q: `Помоги подготовиться к Speaking Part ${part.part}, вопрос: "${q}". Подскажи структуру ответа, ключевую лексику, и пример сильного ответа.`,
+                      });
+                      router.push(`/tutor?${params.toString()}`);
+                    }}
+                    className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                  >
+                    <MessageCircle className="w-3 h-3" />
+                    Спросить ИИ
+                  </button>
                 </div>
                 <p className="text-lg font-semibold text-[rgb(var(--foreground))] leading-snug">
                   {currentQuestions[questionIdx]}
@@ -522,6 +620,18 @@ export default function SpeakingTestPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <BookOpen className="w-4 h-4 text-[rgb(var(--primary))]" />
                     <span className="text-xs font-semibold text-[rgb(var(--primary))] uppercase tracking-wide">Cue Card</span>
+                    <button
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          q: `Помоги с Speaking Part 2 cue card: "${part.topic_text}". Подскажи структуру 2-минутного монолога, ключевую лексику и пример идеи для каждого пункта.`,
+                        });
+                        router.push(`/tutor?${params.toString()}`);
+                      }}
+                      className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      Спросить ИИ
+                    </button>
                   </div>
                   <p className="font-semibold text-[rgb(var(--foreground))] leading-snug">{part.topic_text}</p>
                 </div>
