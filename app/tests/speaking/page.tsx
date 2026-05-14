@@ -18,9 +18,12 @@ import {
   Loader2,
   AlertCircle,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSpeakingTopics } from "@/lib/supabase/queries";
+import { parseSpeakingTopic } from "@/lib/test-mapping/content-filter";
 import type { Database } from "@/lib/supabase/types";
 
 type SpeakingTopic = Database["public"]["Tables"]["speaking_topics"]["Row"];
@@ -74,15 +77,19 @@ const FALLBACK_TOPICS = [
 
 // ─── Waveform animation ───────────────────────────────────────────────────────
 
+// Stable pseudo-random bar heights (12 bars). React rule: don't call Math.random
+// during render — heights would change every paint and break the animation.
+const WAVEFORM_HEIGHTS = [22, 14, 30, 18, 10, 26, 12, 24, 16, 28, 20, 12];
+
 function WaveformBars({ active }: { active: boolean }) {
   return (
     <div className="flex items-center justify-center gap-1 h-10">
-      {[...Array(12)].map((_, i) => (
+      {WAVEFORM_HEIGHTS.map((h, i) => (
         <div
           key={i}
           className={cn("w-1 rounded-full transition-all", active ? "bg-[rgb(var(--primary))]" : "bg-[rgb(var(--border))]")}
           style={{
-            height: active ? `${Math.random() * 28 + 8}px` : "8px",
+            height: active ? `${h}px` : "8px",
             animation: active ? `speakBounce ${0.4 + i * 0.07}s infinite alternate` : "none",
           }}
         />
@@ -109,15 +116,27 @@ function CriteriaBar({ band, label }: { band: number; label: string }) {
   );
 }
 
-type Phase = "intro" | "prep" | "recording" | "recorded" | "loading" | "feedback";
+type Phase = "landing" | "intro" | "prep" | "recording" | "recorded" | "loading" | "feedback";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// A unified topic shape that covers all 3 parts. `questions` is used for
+// Parts 1 & 3 (follow-up questions); `cue_card_points` is used for Part 2.
+type Topic = {
+  id: string;
+  part?: 1 | 2 | 3;
+  topic_text?: string;
+  questions?: string[];
+  cue_card_points?: string[];
+  sample_answer?: string | null;
+};
+
 export default function SpeakingTestPage() {
-  const [topics, setTopics] = useState(FALLBACK_TOPICS as any[]);
+  const router = useRouter();
+  const [topics, setTopics] = useState<Topic[]>(FALLBACK_TOPICS as Topic[]);
   const [partIdx, setPartIdx] = useState(0);
   const [questionIdx, setQuestionIdx] = useState(0);
-  const [phase, setPhase] = useState<Phase>("intro");
+  const [phase, setPhase] = useState<Phase>("landing");
   const [prepTime, setPrepTime] = useState(60);
   const [recordTime, setRecordTime] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -130,7 +149,15 @@ export default function SpeakingTestPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const lastAudioBlobRef = useRef<Blob | null>(null);
+  // Per-part audio recordings. Indexed by partIdx (0 = Part 1, 1 = Part 2, 2 = Part 3).
+  // The previous bug sent only Part 2 for evaluation; Parts 1 and 3 were
+  // recorded but discarded. We now collect everything and submit all three.
+  const recordingsRef = useRef<Record<number, Blob>>({});
+  const currentPartIdxRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Part 2 has a hard 2-minute cap in real IELTS — examiner stops the candidate.
+  const PART2_MAX_SECONDS = 120;
 
   const part = topics[partIdx];
   const maxPart = topics.length;
@@ -139,23 +166,74 @@ export default function SpeakingTestPage() {
 
   // ── Load topics from Supabase ──
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       try {
         const sb = createClient();
-        const p1 = await getSpeakingTopics(sb, 1, 1);
-        const p2 = await getSpeakingTopics(sb, 2, 1);
-        const p3 = await getSpeakingTopics(sb, 3, 1);
+        // Fetch all 3 parts in parallel (previously sequential — 3× latency).
+        const [p1, p2, p3] = await Promise.all([
+          getSpeakingTopics(sb, 1, 1),
+          getSpeakingTopics(sb, 2, 1),
+          getSpeakingTopics(sb, 3, 1),
+        ]);
+        if (cancelled) return;
         if (p1.length && p2.length && p3.length) {
+          // DB rows store cue-card points & follow-up questions as JSON arrays
+          // on the row; map them into our Topic shape.
+          type DbTopic = {
+            id: string;
+            part: 1 | 2 | 3;
+            topic_text: string;
+            cue_card_points?: string[] | null;
+            follow_up_questions?: string[] | null;
+          };
+          const r1 = p1[0] as DbTopic;
+          const r2 = p2[0] as DbTopic;
+          const r3 = p3[0] as DbTopic;
+
+          // topic_text from the legacy import sometimes contains a stringified
+          // JSON array — produces literal "[" in the UI. parseSpeakingTopic
+          // returns plain text + (for Part 2) bullets to use as cue card points
+          // when the dedicated cue_card_points field is null (importer bug #7).
+          const t1 = parseSpeakingTopic(r1.topic_text);
+          const t2 = parseSpeakingTopic(r2.topic_text);
+          const t3 = parseSpeakingTopic(r3.topic_text);
+
+          // Fall back to a clean default if topic_text is unusable.
+          const topicOr = (parsed: { text: string }, fallback: string) =>
+            parsed.text.trim().length > 5 ? parsed.text : fallback;
+
           setTopics([
-            { ...(p1[0] as object), questions: ((p1[0] as any).follow_up_questions as string[]) ?? FALLBACK_TOPICS[0].questions },
-            { ...(p2[0] as object), cue_card_points: ((p2[0] as any).cue_card_points as string[]) ?? FALLBACK_TOPICS[1].cue_card_points },
-            { ...(p3[0] as object), questions: ((p3[0] as any).follow_up_questions as string[]) ?? FALLBACK_TOPICS[2].questions },
+            {
+              id: r1.id, part: 1,
+              topic_text: topicOr(t1, FALLBACK_TOPICS[0].topic_text),
+              questions: r1.follow_up_questions ?? FALLBACK_TOPICS[0].questions,
+            },
+            {
+              id: r2.id, part: 2,
+              topic_text: topicOr(t2, FALLBACK_TOPICS[1].topic_text),
+              // If the importer didn't populate cue_card_points but the topic
+              // itself was a JSON array of points, use those instead.
+              cue_card_points:
+                r2.cue_card_points
+                ?? t2.bullets
+                ?? FALLBACK_TOPICS[1].cue_card_points,
+            },
+            {
+              id: r3.id, part: 3,
+              topic_text: topicOr(t3, FALLBACK_TOPICS[2].topic_text),
+              questions: r3.follow_up_questions ?? FALLBACK_TOPICS[2].questions,
+            },
           ]);
         }
       } catch { /* use fallback */ }
     }
     load();
+    return () => { cancelled = true; };
   }, []);
+
+  // Keep currentPartIdxRef in sync so MediaRecorder.onstop knows which part the recording belongs to.
+  useEffect(() => { currentPartIdxRef.current = partIdx; }, [partIdx]);
 
   // Cleanup stream on unmount
   useEffect(() => {
@@ -182,7 +260,16 @@ export default function SpeakingTestPage() {
       }, 1000);
     }
     if (phase === "recording") {
-      timerRef.current = setInterval(() => setRecordTime((t) => t + 1), 1000);
+      timerRef.current = setInterval(() => {
+        setRecordTime((t) => {
+          const next = t + 1;
+          // Part 2 hard cap: 2 minutes — auto-stops recording like the real exam.
+          if (partIdx === 1 && next >= PART2_MAX_SECONDS) {
+            stopRecording();
+          }
+          return next;
+        });
+      }, 1000);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase]);
@@ -205,7 +292,10 @@ export default function SpeakingTestPage() {
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mr.onstop = () => {
-        lastAudioBlobRef.current = new Blob(audioChunksRef.current, { type: mimeType || "audio/webm" });
+        const blob = new Blob(audioChunksRef.current, { type: mimeType || "audio/webm" });
+        lastAudioBlobRef.current = blob;
+        // Save under the part we just recorded, so all 3 parts contribute to evaluation.
+        recordingsRef.current[currentPartIdxRef.current] = blob;
         stream.getTracks().forEach((t) => t.stop());
       };
       mr.start(250);
@@ -246,6 +336,8 @@ export default function SpeakingTestPage() {
   }
 
   // ── Submit to API ──
+  // Combines all recorded parts into one audio blob and one combined topic
+  // prompt so the AI evaluates the FULL session, not just Part 2.
   async function submitForFeedback() {
     setPhase("loading");
     setError(null);
@@ -254,21 +346,36 @@ export default function SpeakingTestPage() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
 
+      // Combine Parts 1 + 2 + 3 in order. Concatenating WebM byte streams is
+      // not strictly conformant, but Whisper accepts it in practice as long
+      // as the first part's header is valid. If any part is missing we just
+      // skip it.
+      const orderedParts = [0, 1, 2]
+        .map((i) => recordingsRef.current[i])
+        .filter((b): b is Blob => b instanceof Blob && b.size > 0);
+
+      // If absolutely nothing was recorded, fall back to lastAudioBlobRef
+      // (Part 2 only) so we still send something rather than failing silently.
+      const combinedAudio: Blob = orderedParts.length > 0
+        ? new Blob(orderedParts, { type: orderedParts[0].type || "audio/webm" })
+        : (lastAudioBlobRef.current ?? new Blob([""], { type: "audio/webm" }));
+
+      // Build a combined topic prompt covering all 3 parts so the examiner
+      // model knows what the candidate was answering.
+      const topicText = [
+        topics[0]?.topic_text && `Part 1 — ${topics[0].topic_text}`,
+        topics[1]?.topic_text && `Part 2 (cue card, 1–2 min long turn) — ${topics[1].topic_text}`,
+        topics[2]?.topic_text && `Part 3 (discussion) — ${topics[2].topic_text}`,
+      ].filter(Boolean).join("\n\n");
+
       const formData = new FormData();
-
-      // Use the Part 2 topic for assessment (most assessable)
-      const p2topic = topics[1];
-      const topicText = p2topic?.topic_text ?? "Describe a topic from your daily life";
-
-      if (lastAudioBlobRef.current) {
-        formData.append("audio", lastAudioBlobRef.current, "speaking.webm");
-      } else {
-        // No real audio - create empty blob to satisfy API
-        formData.append("audio", new Blob([""], { type: "audio/webm" }), "speaking.webm");
-      }
-      formData.append("topic", topicText);
-      formData.append("part", "2");
-      if (user && p2topic?.id) formData.append("contentId", p2topic.id);
+      formData.append("audio", combinedAudio, "speaking-full.webm");
+      formData.append("topic", topicText || "IELTS Speaking — full session (Parts 1–3)");
+      // "part" = "all" tells the API this is a combined session, not a single part.
+      formData.append("part", "all");
+      // Use Part 2's content_id (cue-card topic) as the canonical content for the attempt row.
+      const canonicalContentId = topics[1]?.id ?? topics[0]?.id ?? topics[2]?.id;
+      if (user && canonicalContentId) formData.append("contentId", String(canonicalContentId));
 
       const res = await fetch("/api/ai/speaking", {
         method: "POST",
@@ -455,6 +562,88 @@ export default function SpeakingTestPage() {
   const currentQuestions = part?.questions as string[] | undefined;
   const cuePoints = part?.cue_card_points as string[] | undefined;
 
+  // ── LANDING phase (pre-test) ──
+  if (phase === "landing") {
+    return (
+      <div className="min-h-screen bg-[rgb(var(--background))]">
+        <header className="sticky top-0 z-40 bg-white border-b border-[rgb(var(--border))]">
+          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
+              <ChevronLeft className="w-4 h-4" />Dashboard
+            </Link>
+            <div className="flex items-center gap-2 ml-2">
+              <Mic2 className="w-4 h-4 text-violet-500" />
+              <span className="font-semibold text-[rgb(var(--foreground))]">Speaking Test</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-2xl mx-auto px-4 py-8">
+          <div className="bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm p-8 flex flex-col items-center text-center gap-6">
+            <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <Mic2 className="w-8 h-8 text-violet-500" />
+            </div>
+
+            <div>
+              <h1 className="text-3xl font-bold text-[rgb(var(--foreground))] mb-2">IELTS Speaking</h1>
+              <p className="text-sm text-[rgb(var(--muted-foreground))]">3 части: интервью, монолог и дискуссия</p>
+            </div>
+
+            <div className="flex gap-8">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-violet-500">~12 мин</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))]">Время</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-violet-500">3</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))]">Частей</div>
+              </div>
+            </div>
+
+            <div className="text-left w-full">
+              <h2 className="font-semibold text-[rgb(var(--foreground))] mb-3">Формат теста</h2>
+              <ul className="space-y-2 text-sm text-[rgb(var(--muted-foreground))]">
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Part 1: Введение и интервью (5 минут)</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Part 2: Развёрнутый ответ по карточке (1 мин подготовка + 2 мин)</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Part 3: Двусторонняя дискуссия (5 минут)</li>
+                <li className="flex gap-2"><span className="text-[rgb(var(--primary))]">•</span>Оценка: Fluency, Vocabulary, Grammar, Pronunciation</li>
+              </ul>
+            </div>
+
+            <div className="w-full bg-[rgb(var(--muted)/0.05)] rounded-lg px-4 py-2.5 text-xs text-[rgb(var(--muted-foreground))] text-center">
+              🌐 Тест проводится полностью на английском языке
+            </div>
+
+            <button
+              onClick={() => { setPartIdx(0); setQuestionIdx(0); setPhase("intro"); }}
+              className="w-full bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary)/0.92)] text-white font-semibold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md shadow-[rgb(var(--primary)/0.25)]"
+            >
+              Начать тест Speaking
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <div className="relative w-full flex items-center gap-3">
+              <div className="flex-1 h-px bg-[rgb(var(--border))]" />
+              <span className="text-[10px] uppercase tracking-widest text-[rgb(var(--muted-foreground))]">Или практикуйте по частям</span>
+              <div className="flex-1 h-px bg-[rgb(var(--border))]" />
+            </div>
+            <div className="grid grid-cols-3 gap-2 w-full">
+              {[0, 1, 2].map((i) => (
+                <button
+                  key={i}
+                  onClick={() => { setPartIdx(i); setQuestionIdx(0); setPhase("intro"); }}
+                  className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
+                >
+                  Part {i + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
       <header className="sticky top-0 z-40 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
@@ -508,6 +697,19 @@ export default function SpeakingTestPage() {
                     {questionIdx + 1}
                   </span>
                   <span className="text-xs text-[rgb(var(--muted-foreground))]">из {currentQuestions.length} вопросов</span>
+                  <button
+                    onClick={() => {
+                      const q = currentQuestions[questionIdx];
+                      const params = new URLSearchParams({
+                        q: `Помоги подготовиться к Speaking Part ${part.part}, вопрос: "${q}". Подскажи структуру ответа, ключевую лексику, и пример сильного ответа.`,
+                      });
+                      router.push(`/tutor?${params.toString()}`);
+                    }}
+                    className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                  >
+                    <MessageCircle className="w-3 h-3" />
+                    Спросить ИИ
+                  </button>
                 </div>
                 <p className="text-lg font-semibold text-[rgb(var(--foreground))] leading-snug">
                   {currentQuestions[questionIdx]}
@@ -522,6 +724,18 @@ export default function SpeakingTestPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <BookOpen className="w-4 h-4 text-[rgb(var(--primary))]" />
                     <span className="text-xs font-semibold text-[rgb(var(--primary))] uppercase tracking-wide">Cue Card</span>
+                    <button
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          q: `Помоги с Speaking Part 2 cue card: "${part.topic_text}". Подскажи структуру 2-минутного монолога, ключевую лексику и пример идеи для каждого пункта.`,
+                        });
+                        router.push(`/tutor?${params.toString()}`);
+                      }}
+                      className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      Спросить ИИ
+                    </button>
                   </div>
                   <p className="font-semibold text-[rgb(var(--foreground))] leading-snug">{part.topic_text}</p>
                 </div>

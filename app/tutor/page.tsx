@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,17 @@ const FREE_LIMIT = 3;
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TutorPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-[rgb(var(--primary))]" /></div>}>
+      <TutorPageInner />
+    </Suspense>
+  );
+}
+
+function TutorPageInner() {
+  const searchParams = useSearchParams();
+  const initialQuestion = searchParams.get("q") ?? "";
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -56,7 +68,8 @@ export default function TutorPage() {
         "Привет! Я твой AI-тьютор по IELTS 👋\n\nМогу помочь с любым модулем: Reading, Writing, Listening или Speaking. Задай вопрос или выбери тему ниже.\n\n*У тебя 3 бесплатных вопроса. Pro — неограниченно.*",
     },
   ]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialQuestion);
+  const [autoSent, setAutoSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [usedCount, setUsedCount] = useState(0);
   const [paywalled, setPaywalled] = useState(false);
@@ -91,6 +104,19 @@ export default function TutorPage() {
     }
     loadHistory();
   }, []);
+
+  // Auto-send pre-filled question from URL ?q=...
+  useEffect(() => {
+    if (initialQuestion && !autoSent) {
+      setAutoSent(true);
+      const timer = setTimeout(() => {
+        sendMessage(initialQuestion);
+        setInput("");
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion, autoSent]);
 
   async function sendMessage(text: string) {
     if (!text.trim() || loading) return;

@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
+import { checkDailyLimit, incrementUsage } from "@/lib/supabase/queries";
 
 export const maxDuration = 30;
 
@@ -10,6 +11,19 @@ export async function POST() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) {
       return new Response(JSON.stringify({ error: "unauthenticated" }), { status: 401 });
+    }
+
+    // Rate-limit: study-plan generation calls GPT — must be gated like other AI features
+    // to prevent unlimited token burn per user.
+    const allowed = await checkDailyLimit(sb, user.id, "study_plan");
+    if (!allowed) {
+      return new Response(
+        JSON.stringify({
+          error: "limit_reached",
+          message: "Лимит генераций плана исчерпан на сегодня. Обновитесь до Pro.",
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -75,6 +89,9 @@ Rules:
     } catch {
       return new Response(JSON.stringify({ error: "parse_error" }), { status: 500 });
     }
+
+    // AI succeeded → charge quota.
+    try { await incrementUsage(sb, user.id, "study_plan"); } catch { /* non-fatal */ }
 
     return Response.json(plan);
   } catch (err) {
