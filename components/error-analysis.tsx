@@ -19,17 +19,24 @@ type Props = {
 };
 
 /** Categorize a question by its instruction into a "type". */
-function categorize(instruction: string | undefined, text: string): string {
-  const s = ((instruction ?? "") + " " + text).toLowerCase();
-  if (/true|false|not given/.test(s)) return "True / False / Not Given";
-  if (/headings|match.*heading/.test(s)) return "Matching Headings";
-  if (/matching|match the/.test(s)) return "Matching";
-  if (/yes|no|not given/.test(s)) return "Yes / No / Not Given";
-  if (/summary|complete the summary/.test(s)) return "Summary Completion";
-  if (/sentence completion|complete the sentence/.test(s)) return "Sentence Completion";
-  if (/short answer|answer the question/.test(s)) return "Short Answer";
-  if (/choose.*correct|select.*one|multiple choice|which/i.test(s)) return "Multiple Choice";
-  if (/fill in|complete the|gap/.test(s)) return "Gap Fill";
+export function categorize(instruction: string | undefined, text: string): string {
+  // Match against the INSTRUCTION only — user-supplied question text often
+  // contains stray words like "no" or "true" that would trigger false matches.
+  const s = (instruction ?? "").toLowerCase();
+
+  // Order matters: Y/N/NG must be checked BEFORE T/F/NG because the
+  // phrase "yes / no / not given" contains "not given" as a substring.
+  // Also: more specific patterns ("matching headings") before more general
+  // ones ("matching").
+  if (/\byes\b.*\bno\b.*not\s+given/.test(s)) return "Yes / No / Not Given";
+  if (/\btrue\b.*\bfalse\b.*not\s+given/.test(s)) return "True / False / Not Given";
+  if (/match.*headings?\b/.test(s)) return "Matching Headings";
+  if (/\bmatching\b|\bmatch\s+(?:the|each|statement)/.test(s)) return "Matching";
+  if (/\bsummary\s+completion\b|complete the summary/.test(s)) return "Summary Completion";
+  if (/sentence\s+completion|complete the sentence/.test(s)) return "Sentence Completion";
+  if (/short\s+answer|answer the question/.test(s)) return "Short Answer";
+  if (/choose.*correct|multiple\s+choice|\bwhich\s+(of|two)\b/.test(s)) return "Multiple Choice";
+  if (/fill in|complete the (?:gap|notes|table|diagram|flow.?chart)|gap\s*fill/.test(s)) return "Gap Fill";
   return "Other";
 }
 

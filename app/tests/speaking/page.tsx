@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getSpeakingTopics } from "@/lib/supabase/queries";
+import { parseSpeakingTopic } from "@/lib/test-mapping/content-filter";
 import type { Database } from "@/lib/supabase/types";
 
 type SpeakingTopic = Database["public"]["Tables"]["speaking_topics"]["Row"];
@@ -74,15 +75,19 @@ const FALLBACK_TOPICS = [
 
 // ─── Waveform animation ───────────────────────────────────────────────────────
 
+// Stable pseudo-random bar heights (12 bars). React rule: don't call Math.random
+// during render — heights would change every paint and break the animation.
+const WAVEFORM_HEIGHTS = [22, 14, 30, 18, 10, 26, 12, 24, 16, 28, 20, 12];
+
 function WaveformBars({ active }: { active: boolean }) {
   return (
     <div className="flex items-center justify-center gap-1 h-10">
-      {[...Array(12)].map((_, i) => (
+      {WAVEFORM_HEIGHTS.map((h, i) => (
         <div
           key={i}
           className={cn("w-1 rounded-full transition-all", active ? "bg-[rgb(var(--primary))]" : "bg-[rgb(var(--border))]")}
           style={{
-            height: active ? `${Math.random() * 28 + 8}px` : "8px",
+            height: active ? `${h}px` : "8px",
             animation: active ? `speakBounce ${0.4 + i * 0.07}s infinite alternate` : "none",
           }}
         />
@@ -113,8 +118,19 @@ type Phase = "intro" | "prep" | "recording" | "recorded" | "loading" | "feedback
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// A unified topic shape that covers all 3 parts. `questions` is used for
+// Parts 1 & 3 (follow-up questions); `cue_card_points` is used for Part 2.
+type Topic = {
+  id: string;
+  part?: 1 | 2 | 3;
+  topic_text?: string;
+  questions?: string[];
+  cue_card_points?: string[];
+  sample_answer?: string | null;
+};
+
 export default function SpeakingTestPage() {
-  const [topics, setTopics] = useState(FALLBACK_TOPICS as any[]);
+  const [topics, setTopics] = useState<Topic[]>(FALLBACK_TOPICS as Topic[]);
   const [partIdx, setPartIdx] = useState(0);
   const [questionIdx, setQuestionIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>("intro");
@@ -130,7 +146,15 @@ export default function SpeakingTestPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const lastAudioBlobRef = useRef<Blob | null>(null);
+  // Per-part audio recordings. Indexed by partIdx (0 = Part 1, 1 = Part 2, 2 = Part 3).
+  // The previous bug sent only Part 2 for evaluation; Parts 1 and 3 were
+  // recorded but discarded. We now collect everything and submit all three.
+  const recordingsRef = useRef<Record<number, Blob>>({});
+  const currentPartIdxRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Part 2 has a hard 2-minute cap in real IELTS — examiner stops the candidate.
+  const PART2_MAX_SECONDS = 120;
 
   const part = topics[partIdx];
   const maxPart = topics.length;
@@ -139,23 +163,74 @@ export default function SpeakingTestPage() {
 
   // ── Load topics from Supabase ──
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       try {
         const sb = createClient();
-        const p1 = await getSpeakingTopics(sb, 1, 1);
-        const p2 = await getSpeakingTopics(sb, 2, 1);
-        const p3 = await getSpeakingTopics(sb, 3, 1);
+        // Fetch all 3 parts in parallel (previously sequential — 3× latency).
+        const [p1, p2, p3] = await Promise.all([
+          getSpeakingTopics(sb, 1, 1),
+          getSpeakingTopics(sb, 2, 1),
+          getSpeakingTopics(sb, 3, 1),
+        ]);
+        if (cancelled) return;
         if (p1.length && p2.length && p3.length) {
+          // DB rows store cue-card points & follow-up questions as JSON arrays
+          // on the row; map them into our Topic shape.
+          type DbTopic = {
+            id: string;
+            part: 1 | 2 | 3;
+            topic_text: string;
+            cue_card_points?: string[] | null;
+            follow_up_questions?: string[] | null;
+          };
+          const r1 = p1[0] as DbTopic;
+          const r2 = p2[0] as DbTopic;
+          const r3 = p3[0] as DbTopic;
+
+          // topic_text from the legacy import sometimes contains a stringified
+          // JSON array — produces literal "[" in the UI. parseSpeakingTopic
+          // returns plain text + (for Part 2) bullets to use as cue card points
+          // when the dedicated cue_card_points field is null (importer bug #7).
+          const t1 = parseSpeakingTopic(r1.topic_text);
+          const t2 = parseSpeakingTopic(r2.topic_text);
+          const t3 = parseSpeakingTopic(r3.topic_text);
+
+          // Fall back to a clean default if topic_text is unusable.
+          const topicOr = (parsed: { text: string }, fallback: string) =>
+            parsed.text.trim().length > 5 ? parsed.text : fallback;
+
           setTopics([
-            { ...(p1[0] as object), questions: ((p1[0] as any).follow_up_questions as string[]) ?? FALLBACK_TOPICS[0].questions },
-            { ...(p2[0] as object), cue_card_points: ((p2[0] as any).cue_card_points as string[]) ?? FALLBACK_TOPICS[1].cue_card_points },
-            { ...(p3[0] as object), questions: ((p3[0] as any).follow_up_questions as string[]) ?? FALLBACK_TOPICS[2].questions },
+            {
+              id: r1.id, part: 1,
+              topic_text: topicOr(t1, FALLBACK_TOPICS[0].topic_text),
+              questions: r1.follow_up_questions ?? FALLBACK_TOPICS[0].questions,
+            },
+            {
+              id: r2.id, part: 2,
+              topic_text: topicOr(t2, FALLBACK_TOPICS[1].topic_text),
+              // If the importer didn't populate cue_card_points but the topic
+              // itself was a JSON array of points, use those instead.
+              cue_card_points:
+                r2.cue_card_points
+                ?? t2.bullets
+                ?? FALLBACK_TOPICS[1].cue_card_points,
+            },
+            {
+              id: r3.id, part: 3,
+              topic_text: topicOr(t3, FALLBACK_TOPICS[2].topic_text),
+              questions: r3.follow_up_questions ?? FALLBACK_TOPICS[2].questions,
+            },
           ]);
         }
       } catch { /* use fallback */ }
     }
     load();
+    return () => { cancelled = true; };
   }, []);
+
+  // Keep currentPartIdxRef in sync so MediaRecorder.onstop knows which part the recording belongs to.
+  useEffect(() => { currentPartIdxRef.current = partIdx; }, [partIdx]);
 
   // Cleanup stream on unmount
   useEffect(() => {
@@ -182,7 +257,16 @@ export default function SpeakingTestPage() {
       }, 1000);
     }
     if (phase === "recording") {
-      timerRef.current = setInterval(() => setRecordTime((t) => t + 1), 1000);
+      timerRef.current = setInterval(() => {
+        setRecordTime((t) => {
+          const next = t + 1;
+          // Part 2 hard cap: 2 minutes — auto-stops recording like the real exam.
+          if (partIdx === 1 && next >= PART2_MAX_SECONDS) {
+            stopRecording();
+          }
+          return next;
+        });
+      }, 1000);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase]);
@@ -205,7 +289,10 @@ export default function SpeakingTestPage() {
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mr.onstop = () => {
-        lastAudioBlobRef.current = new Blob(audioChunksRef.current, { type: mimeType || "audio/webm" });
+        const blob = new Blob(audioChunksRef.current, { type: mimeType || "audio/webm" });
+        lastAudioBlobRef.current = blob;
+        // Save under the part we just recorded, so all 3 parts contribute to evaluation.
+        recordingsRef.current[currentPartIdxRef.current] = blob;
         stream.getTracks().forEach((t) => t.stop());
       };
       mr.start(250);
@@ -246,6 +333,8 @@ export default function SpeakingTestPage() {
   }
 
   // ── Submit to API ──
+  // Combines all recorded parts into one audio blob and one combined topic
+  // prompt so the AI evaluates the FULL session, not just Part 2.
   async function submitForFeedback() {
     setPhase("loading");
     setError(null);
@@ -254,21 +343,36 @@ export default function SpeakingTestPage() {
       const sb = createClient();
       const { data: { user } } = await sb.auth.getUser();
 
+      // Combine Parts 1 + 2 + 3 in order. Concatenating WebM byte streams is
+      // not strictly conformant, but Whisper accepts it in practice as long
+      // as the first part's header is valid. If any part is missing we just
+      // skip it.
+      const orderedParts = [0, 1, 2]
+        .map((i) => recordingsRef.current[i])
+        .filter((b): b is Blob => b instanceof Blob && b.size > 0);
+
+      // If absolutely nothing was recorded, fall back to lastAudioBlobRef
+      // (Part 2 only) so we still send something rather than failing silently.
+      const combinedAudio: Blob = orderedParts.length > 0
+        ? new Blob(orderedParts, { type: orderedParts[0].type || "audio/webm" })
+        : (lastAudioBlobRef.current ?? new Blob([""], { type: "audio/webm" }));
+
+      // Build a combined topic prompt covering all 3 parts so the examiner
+      // model knows what the candidate was answering.
+      const topicText = [
+        topics[0]?.topic_text && `Part 1 — ${topics[0].topic_text}`,
+        topics[1]?.topic_text && `Part 2 (cue card, 1–2 min long turn) — ${topics[1].topic_text}`,
+        topics[2]?.topic_text && `Part 3 (discussion) — ${topics[2].topic_text}`,
+      ].filter(Boolean).join("\n\n");
+
       const formData = new FormData();
-
-      // Use the Part 2 topic for assessment (most assessable)
-      const p2topic = topics[1];
-      const topicText = p2topic?.topic_text ?? "Describe a topic from your daily life";
-
-      if (lastAudioBlobRef.current) {
-        formData.append("audio", lastAudioBlobRef.current, "speaking.webm");
-      } else {
-        // No real audio - create empty blob to satisfy API
-        formData.append("audio", new Blob([""], { type: "audio/webm" }), "speaking.webm");
-      }
-      formData.append("topic", topicText);
-      formData.append("part", "2");
-      if (user && p2topic?.id) formData.append("contentId", p2topic.id);
+      formData.append("audio", combinedAudio, "speaking-full.webm");
+      formData.append("topic", topicText || "IELTS Speaking — full session (Parts 1–3)");
+      // "part" = "all" tells the API this is a combined session, not a single part.
+      formData.append("part", "all");
+      // Use Part 2's content_id (cue-card topic) as the canonical content for the attempt row.
+      const canonicalContentId = topics[1]?.id ?? topics[0]?.id ?? topics[2]?.id;
+      if (user && canonicalContentId) formData.append("contentId", String(canonicalContentId));
 
       const res = await fetch("/api/ai/speaking", {
         method: "POST",

@@ -92,8 +92,12 @@ export default function WritingTestPage() {
   const [feedback, setFeedback] = useState<WritingFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [timerSec, setTimerSec] = useState(0);
+  // IELTS Writing total = 60 minutes. We use a hard COUNTDOWN, not a count-up,
+  // because the real exam ends abruptly and candidates must train for it.
+  const WRITING_TOTAL_SECONDS = 60 * 60;
+  const [timeLeft, setTimeLeft] = useState(WRITING_TOTAL_SECONDS);
   const [showSample, setShowSample] = useState(false);
+  const autoSubmittedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const loadingRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -121,15 +125,27 @@ export default function WritingTestPage() {
     loadTask();
   }, []);
 
-  // ── Timer (counts up) ──
-  useEffect(() => {
-    if (phase === "write") {
-      timerRef.current = setInterval(() => setTimerSec((s) => s + 1), 1000);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [phase]);
-
   const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  // ── Countdown timer with auto-submit at 0 ──
+  useEffect(() => {
+    if (phase !== "write") return;
+    if (timeLeft <= 0) {
+      // Time's up — force-submit whatever the user has written (only if they
+      // wrote enough to be graded; otherwise just stop the timer).
+      if (!autoSubmittedRef.current && !isUnderMin) {
+        autoSubmittedRef.current = true;
+        handleSubmit();
+      }
+      return;
+    }
+    timerRef.current = setInterval(() => setTimeLeft((t) => Math.max(0, t - 1)), 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, timeLeft]);
+
+  const lowTime = timeLeft < 5 * 60;
+  const outOfTime = timeLeft === 0;
 
   // ── Submit: call AI API ──
   async function handleSubmit() {
@@ -416,9 +432,15 @@ export default function WritingTestPage() {
               {taskLoading && <span className="text-[rgb(var(--muted-foreground))]"> · загрузка...</span>}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 text-sm font-mono text-[rgb(var(--foreground))] shrink-0">
-            <Clock className="w-3.5 h-3.5 text-[rgb(var(--warning))]" />
-            {mmss(timerSec)}
+          <div
+            className={cn(
+              "flex items-center gap-1.5 text-sm font-mono shrink-0",
+              lowTime ? "text-[rgb(var(--destructive))] font-bold" : "text-[rgb(var(--foreground))]"
+            )}
+            title="Осталось до конца теста"
+          >
+            <Clock className={cn("w-3.5 h-3.5", lowTime ? "text-[rgb(var(--destructive))]" : "text-[rgb(var(--warning))]")} />
+            {mmss(timeLeft)}
           </div>
           <Button size="sm" disabled={isUnderMin} onClick={handleSubmit} className="shrink-0 gap-1.5">
             <Zap className="w-3.5 h-3.5" />
@@ -430,6 +452,16 @@ export default function WritingTestPage() {
       {error && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700 text-center">
           {error}
+        </div>
+      )}
+      {lowTime && !outOfTime && (
+        <div className="bg-[rgb(var(--destructive)/0.08)] border-b border-[rgb(var(--destructive)/0.2)] px-4 py-1.5 text-xs text-[rgb(var(--destructive))] text-center font-medium">
+          Осталось меньше 5 минут — тест автоматически завершится при 0:00.
+        </div>
+      )}
+      {outOfTime && (
+        <div className="bg-[rgb(var(--destructive)/0.12)] border-b border-[rgb(var(--destructive)/0.3)] px-4 py-1.5 text-xs text-[rgb(var(--destructive))] text-center font-semibold">
+          Время вышло. {isUnderMin ? "Эссе слишком короткое для AI-оценки — продолжайте писать или сдайте." : "Идёт автоматическая отправка…"}
         </div>
       )}
 

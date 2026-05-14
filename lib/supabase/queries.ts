@@ -49,7 +49,7 @@ export async function updateProfile(
 export async function checkDailyLimit(
   sb: SB,
   userId: string,
-  contentType: ContentType | "ai_tutor"
+  contentType: ContentType | "ai_tutor" | "study_plan"
 ): Promise<boolean> {
   const { data } = await (sb as any).rpc("check_daily_limit", {
     p_user_id: userId,
@@ -61,7 +61,7 @@ export async function checkDailyLimit(
 export async function incrementUsage(
   sb: SB,
   userId: string,
-  contentType: ContentType | "ai_tutor"
+  contentType: ContentType | "ai_tutor" | "study_plan"
 ) {
   await (sb as any).rpc("increment_usage", {
     p_user_id: userId,

@@ -2,6 +2,8 @@ import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
 import { checkDailyLimit, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { clampBand } from "@/lib/utils";
+import { WRITING_ABSOLUTE_MIN_WORDS, WRITING_TASK1_MIN_WORDS, WRITING_TASK2_MIN_WORDS } from "@/lib/api-constants";
 
 export const maxDuration = 60;
 
@@ -9,8 +11,26 @@ export async function POST(req: Request) {
   try {
     const { essay, prompt, taskType, contentId } = await req.json();
 
-    if (!essay || !prompt) {
-      return new Response("Missing essay or prompt", { status: 400 });
+    if (typeof essay !== "string" || typeof prompt !== "string" || !essay.trim() || !prompt.trim()) {
+      return new Response(
+        JSON.stringify({ error: "missing_fields", message: "Не указано задание или эссе." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const wordCount = essay.trim().split(/\s+/).filter(Boolean).length;
+    const minWords = taskType === "task1" ? WRITING_TASK1_MIN_WORDS : WRITING_TASK2_MIN_WORDS;
+    const taskLabel = taskType === "task1" ? "Task 1" : "Task 2 (Essay)";
+
+    // Refuse trivially short submissions BEFORE touching OpenAI / daily quota.
+    if (wordCount < WRITING_ABSOLUTE_MIN_WORDS) {
+      return new Response(
+        JSON.stringify({
+          error: "too_short",
+          message: `Эссе слишком короткое (${wordCount} слов). Минимум для оценки — ${WRITING_ABSOLUTE_MIN_WORDS} слов; для IELTS ${taskLabel} требуется ${minWords}.`,
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const sb = await createClient();
@@ -24,12 +44,9 @@ export async function POST(req: Request) {
           { status: 429, headers: { "Content-Type": "application/json" } }
         );
       }
-      await incrementUsage(sb, user.id, "writing");
+      // NOTE: incrementUsage moved to AFTER successful AI evaluation so that
+      // failed OpenAI calls do not burn the user's daily quota.
     }
-
-    const wordCount = essay.trim().split(/\s+/).filter(Boolean).length;
-    const minWords = taskType === "task1" ? 150 : 250;
-    const taskLabel = taskType === "task1" ? "Task 1" : "Task 2 (Essay)";
 
     const systemPrompt = `You are an expert IELTS examiner with 15+ years of experience.
 Evaluate writing using official IELTS band descriptors (0–9 scale, multiples of 0.5).
@@ -81,7 +98,25 @@ Rules:
     try {
       parsed = JSON.parse(clean);
     } catch {
-      return new Response("Failed to parse AI response", { status: 500 });
+      return new Response(
+        JSON.stringify({ error: "parse_error", message: "Не удалось разобрать ответ AI. Попробуйте ещё раз." }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Clamp band scores server-side: GPT can hallucinate values outside the
+    // IELTS scale (e.g. 9.5, 12). Never persist or return invalid bands.
+    parsed.overall_band = clampBand(parsed.overall_band);
+    if (parsed.criteria && typeof parsed.criteria === "object") {
+      for (const key of Object.keys(parsed.criteria)) {
+        const c = parsed.criteria[key];
+        if (c && typeof c === "object") c.band = clampBand(c.band);
+      }
+    }
+
+    // AI evaluation succeeded — NOW charge the daily quota.
+    if (user) {
+      try { await incrementUsage(sb, user.id, "writing"); } catch { /* non-fatal */ }
     }
 
     // Save attempt

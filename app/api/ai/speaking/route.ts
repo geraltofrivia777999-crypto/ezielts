@@ -2,6 +2,8 @@ import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
 import { checkDailyLimit, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { clampBand } from "@/lib/utils";
+import { SPEAKING_MIN_AUDIO_BYTES, SPEAKING_MIN_TRANSCRIPT_WORDS } from "@/lib/api-constants";
 
 export const maxDuration = 60;
 
@@ -29,11 +31,11 @@ export async function POST(req: Request) {
           { status: 429, headers: { "Content-Type": "application/json" } }
         );
       }
-      await incrementUsage(sb, user.id, "speaking");
+      // incrementUsage deferred to after successful AI evaluation
     }
 
-    // Validate audio blob (must be > 1KB to be real recording)
-    if (audioBlob.size < 1024) {
+    // Validate audio blob (must be > SPEAKING_MIN_AUDIO_BYTES to be real recording)
+    if (audioBlob.size < SPEAKING_MIN_AUDIO_BYTES) {
       return new Response(
         JSON.stringify({ error: "no_audio", message: "Запись пустая или слишком короткая. Нажмите 'Запись' и говорите минимум 5 секунд." }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -87,7 +89,7 @@ export async function POST(req: Request) {
 
     // Word count check
     const wordCount = transcript.split(/\s+/).filter(Boolean).length;
-    if (wordCount < 5) {
+    if (wordCount < SPEAKING_MIN_TRANSCRIPT_WORDS) {
       return new Response(
         JSON.stringify({ error: "too_short", message: `Распознано только ${wordCount} слов. Говорите дольше для оценки.` }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -151,7 +153,22 @@ Rules:
       feedback = JSON.parse(clean);
     } catch (parseErr) {
       console.error("[speaking-api] JSON parse error:", parseErr, "\nRaw text:", text.slice(0, 300));
-      return new Response("Failed to parse AI response", { status: 500 });
+      return new Response(
+        JSON.stringify({ error: "parse_error", message: "Не удалось разобрать ответ AI." }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Clamp all band scores to the IELTS scale [0, 9] in 0.5 steps.
+    feedback.overall_band = clampBand(feedback.overall_band);
+    feedback.fluency_coherence = clampBand(feedback.fluency_coherence);
+    feedback.lexical_resource = clampBand(feedback.lexical_resource);
+    feedback.grammatical_range = clampBand(feedback.grammatical_range);
+    feedback.pronunciation = clampBand(feedback.pronunciation);
+
+    // AI succeeded → charge quota now (not before).
+    if (user) {
+      try { await incrementUsage(sb, user.id, "speaking"); } catch { /* non-fatal */ }
     }
 
     // Save attempt
