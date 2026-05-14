@@ -52,14 +52,14 @@ Despite these findings, modern life is increasingly hostile to good sleep. Artif
   returning id
 ), q1 as (
   insert into public.reading_questions (group_id, question_text, options, correct_answer, sort_order)
-  select id, q.text, q.opts::jsonb, q.ans, q.ord from g1, (values
+  select id, q.qtext, q.qopts::jsonb, q.qans, q.qord from g1, (values
     ('What was the prevailing scientific view of sleep before the late 20th century?',
      '["That it was essential for muscle repair","That it was a passive shutdown of the brain","That it was needed only by mammals","That it was caused by darkness"]', 'B', 1),
     ('According to the passage, slow-wave sleep is most directly responsible for:',
      '["Resolving emotional conflict","Improving physical reflexes","Consolidating recently learned information","Reducing the need for REM sleep"]', 'C', 2),
     ('Which of the following is presented as a consequence of chronic sleep deprivation?',
      '["Improved short-term memory","Heightened cardiovascular risk","Increased empathy","Slower aging"]', 'B', 3)
-  ) as q(text, opts, ans, ord)
+  ) as q(qtext, qopts, qans, qord)
   returning id
 ), g2 as (
   insert into public.reading_question_groups (section_id, instruction, question_type, sort_order)
@@ -67,11 +67,11 @@ Despite these findings, modern life is increasingly hostile to good sleep. Artif
   returning id
 )
 insert into public.reading_questions (group_id, question_text, options, correct_answer, sort_order)
-select id, q.text, '["TRUE","FALSE","NOT GIVEN"]'::jsonb, q.ans, q.ord from g2, (values
+select id, q.qtext, '["TRUE","FALSE","NOT GIVEN"]'::jsonb, q.qans, q.qord from g2, (values
   ('Students who sleep after studying remember more than students who do not.', 'TRUE', 4),
   ('REM sleep is the longest phase of the sleep cycle.', 'NOT GIVEN', 5),
   ('Artificial light has no effect on circadian rhythms.', 'FALSE', 6)
-) as q(text, ans, ord);
+) as q(qtext, qans, qord);
 
 -- ─ Passage 2 ─
 with t as (
@@ -91,12 +91,12 @@ The twentieth century shifted the balance again. The rise of the automobile and 
   returning id
 )
 insert into public.reading_questions (group_id, question_text, options, correct_answer, sort_order)
-select id, q.text, '["TRUE","FALSE","NOT GIVEN"]'::jsonb, q.ans, q.ord from g3, (values
+select id, q.qtext, '["TRUE","FALSE","NOT GIVEN"]'::jsonb, q.qans, q.qord from g3, (values
   ('The Greek agora was primarily a religious space.', 'FALSE', 1),
   ('Roman amphitheatres could hold tens of thousands of people.', 'TRUE', 2),
   ('Medieval European cities were larger than Roman cities.', 'NOT GIVEN', 3),
   ('Jane Jacobs argued that suburban living improved city life.', 'FALSE', 4)
-) as q(text, ans, ord);
+) as q(qtext, qans, qord);
 
 -- ─ Passage 3 ─
 with t as (
@@ -116,14 +116,14 @@ Historians continue to debate the press's role in the Reformation, the Scientifi
   returning id
 )
 insert into public.reading_questions (group_id, question_text, options, correct_answer, sort_order)
-select id, q.text, q.opts::jsonb, q.ans, q.ord from g4, (values
+select id, q.qtext, q.qopts::jsonb, q.qans, q.qord from g4, (values
   ('Before the printing press, books were:',
    '["Mostly read silently","Copied by hand at high cost","Banned by the Catholic Church","Printed using wooden blocks"]', 'B', 1),
   ('In the first decades after 1450, printers chiefly produced:',
    '["Vernacular novels","Maps and almanacs","The same texts that scribes had copied","Scientific journals"]', 'C', 2),
   ('Roughly how many books were in circulation in Europe by 1500?',
    '["Two million","Twenty million","Eighty million","Two hundred million"]', 'B', 3)
-) as q(text, ans, ord);
+) as q(qtext, qans, qord);
 
 
 -- ── WRITING TASKS ──────────────────────────────────────────────────────────
