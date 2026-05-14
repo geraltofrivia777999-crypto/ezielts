@@ -46,3 +46,7 @@ __pycache__/
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# Scraper cache + data
+.cache/
+data/
