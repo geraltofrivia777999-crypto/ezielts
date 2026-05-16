@@ -26,6 +26,7 @@ import json
 import logging
 import sys
 from dataclasses import asdict
+from itertools import islice
 from pathlib import Path
 
 from tqdm import tqdm
@@ -106,12 +107,18 @@ def main() -> int:
     log.info(f"Cache dir:    {cache_dir}")
     log.info(f"Output file:  {out_path}")
 
-    refs = list(enumerate_all_tests(fetcher, max_pages=args.max_pages))
-    log.info(f"Discovered {len(refs)} reading tests")
-
+    # `enumerate_all_tests` is a generator. With --limit we wrap it in islice
+    # so listing-page enumeration STOPS as soon as we have enough tests —
+    # otherwise the script crawls all ~55 listing pages (3+ sec each from
+    # mini-ielts.com) before applying the limit, which feels like a hang.
+    gen = enumerate_all_tests(fetcher, max_pages=args.max_pages)
     if args.limit:
-        refs = refs[: args.limit]
-        log.info(f"Limited to {len(refs)} for this run")
+        refs = list(islice(gen, args.limit))
+        log.info(f"Limited to {len(refs)} for this run (listing fetch short-circuited)")
+    else:
+        log.info("Discovering all tests…")
+        refs = list(gen)
+        log.info(f"Discovered {len(refs)} reading tests")
 
     out_tests: list[dict] = []
     rejected = 0
