@@ -28,7 +28,7 @@ const NAV = [
   { href: "/tests/reading",   icon: BookOpen,   label: "Reading" },
   { href: "/plan",      icon: Star,        label: "AI план" },
   { href: "/tutor",     icon: Sparkles,    label: "AI тьютор" },
-  { href: "/diagnostic", icon: GraduationCap, label: "Диагностика" },
+  { href: "/live",       icon: GraduationCap, label: "Живое Обучение" },
 ];
 
 const SECONDARY = [

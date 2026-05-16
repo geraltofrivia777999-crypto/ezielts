@@ -31,6 +31,7 @@ export type ListeningQuestion = {
 
 export type ListeningSection = {
   sectionNumber: number; // 1..4
+  audioUrl?: string | null;
   questions: ListeningQuestion[];
 };
 
@@ -63,19 +64,33 @@ function parseOptions(raw: unknown): string[] | null {
 }
 
 export function mapDbToListeningTest(raw: any): ListeningTest {
-  // The legacy schema returns one test = one section. Group by `section`
-  // field if present, otherwise default everything to section 1.
-  const sectionNumber = Number(raw?.section ?? 1);
-  const questions: ListeningQuestion[] = [];
+  let sectionAudioUrls: Record<string, string | null> = {};
+  if (typeof raw?.transcript === "string") {
+    try {
+      const parsed = JSON.parse(raw.transcript);
+      sectionAudioUrls = parsed?.section_audio_urls ?? {};
+    } catch {
+      sectionAudioUrls = {};
+    }
+  }
+
+  const sectionQuestions = new Map<number, ListeningQuestion[]>();
 
   for (const group of raw?.question_groups ?? []) {
     const instruction = (group.instruction as string) ?? "";
     const groupType: string = group.question_type ?? "mcq";
+    const sectionNumber = Number(group.section_number ?? raw?.section ?? 1);
+    if (!sectionQuestions.has(sectionNumber)) sectionQuestions.set(sectionNumber, []);
+    const questions = sectionQuestions.get(sectionNumber)!;
 
     for (const q of group.listening_questions ?? []) {
       // Same defensive filter as reading — see content-filter.ts.
       const check = validateQuestionRow(q.question_text, q.correct_answer);
-      if (!check.ok) continue;
+      // Normalized full-listening tests intentionally store "Question N" as
+      // the input label while the rich section prompt lives in group.instruction.
+      if (!check.ok && !(check.reason === "placeholder" && instruction && q.correct_answer)) {
+        continue;
+      }
 
       const opts = parseOptions(q.options);
       const correct = normaliseAnswer(q.correct_answer);
@@ -106,12 +121,20 @@ export function mapDbToListeningTest(raw: any): ListeningTest {
     }
   }
 
+  const sections = [...sectionQuestions.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([sectionNumber, questions]) => ({
+      sectionNumber,
+      audioUrl: sectionAudioUrls[String(sectionNumber)] ?? (sectionNumber === 1 ? raw?.audio_url ?? null : null),
+      questions,
+    }));
+
   return {
     id: String(raw?.id ?? "unknown"),
     title: String(raw?.title ?? "Listening Test"),
     audioUrl: raw?.audio_url ?? null,
-    duration: Number(raw?.audio_duration ?? 240),
-    sections: [{ sectionNumber, questions }],
+    duration: Number(raw?.audio_duration ?? (sections.length > 1 ? LISTENING_AUDIO_SEC : 240)),
+    sections,
   };
 }
 

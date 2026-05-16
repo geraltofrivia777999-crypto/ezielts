@@ -9,10 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatBand } from "@/lib/utils";
 import {
   BookOpen, Headphones, PenLine, Mic2, Flame,
-  Target, ChevronRight, CheckCircle2, BarChart3,
+  Target, ChevronRight, CheckCircle2,
   Zap, Star, Loader2, Sparkles, Send, Crown,
-  Calendar, Edit3,
+  Calendar, Edit3, TrendingUp,
 } from "lucide-react";
+import { BandLineChart } from "@/app/progress/_components/band-line-chart";
 import { createClient } from "@/lib/supabase/client";
 import { getUserSummary, getBandHistory } from "@/lib/supabase/queries";
 import type { Database } from "@/lib/supabase/types";
@@ -206,7 +207,12 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* ── AI Catbot section ── */}
+        {/* ── Band progress chart ── */}
+        {bandHistory.length > 0 && (
+          <BandLineChart bandHistory={bandHistory} targetBand={targetBand} />
+        )}
+
+        {/* ── AI Chatbot section ── */}
         <div className="bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm p-6 md:p-10 flex flex-col items-center text-center">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-100 to-blue-100 flex items-center justify-center">

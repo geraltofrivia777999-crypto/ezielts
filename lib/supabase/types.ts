@@ -131,6 +131,18 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["listening_tests"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["listening_tests"]["Insert"]>;
       };
+      listening_question_groups: {
+        Row: {
+          id: string;
+          test_id: string;
+          instruction: string | null;
+          question_type: QuestionType;
+          section_number: number | null;
+          sort_order: number;
+        };
+        Insert: Omit<Database["public"]["Tables"]["listening_question_groups"]["Row"], "id">;
+        Update: Partial<Database["public"]["Tables"]["listening_question_groups"]["Insert"]>;
+      };
       listening_questions: {
         Row: {
           id: string;

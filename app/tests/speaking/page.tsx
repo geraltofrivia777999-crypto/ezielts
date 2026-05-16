@@ -19,6 +19,8 @@ import {
   AlertCircle,
   ChevronDown,
   MessageCircle,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -116,6 +118,69 @@ function CriteriaBar({ band, label }: { band: number; label: string }) {
   );
 }
 
+// ─── TTS speak button ────────────────────────────────────────────────────────
+
+function SpeakButton({ text, className }: { text: string; className?: string }) {
+  const [speaking, setSpeaking] = useState(false);
+
+  useEffect(() => {
+    function onEnd() { setSpeaking(false); }
+    window.speechSynthesis?.addEventListener?.("end", onEnd);
+    return () => {
+      window.speechSynthesis?.removeEventListener?.("end", onEnd);
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  function handleSpeak() {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+
+    if (speaking) {
+      synth.cancel();
+      setSpeaking(false);
+      return;
+    }
+
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-GB";
+    utterance.rate = 0.92;
+    utterance.pitch = 1;
+
+    // Prefer a British English voice if available
+    const voices = synth.getVoices();
+    const enGB = voices.find((v) => v.lang === "en-GB" && v.name.includes("Google"));
+    const enAny = voices.find((v) => v.lang.startsWith("en"));
+    if (enGB) utterance.voice = enGB;
+    else if (enAny) utterance.voice = enAny;
+
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    setSpeaking(true);
+    synth.speak(utterance);
+  }
+
+  if (typeof window !== "undefined" && !window.speechSynthesis) return null;
+
+  return (
+    <button
+      onClick={handleSpeak}
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+        speaking
+          ? "bg-violet-100 border border-violet-300 text-violet-700"
+          : "bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100",
+        className,
+      )}
+      title={speaking ? "Остановить" : "Озвучить вопрос"}
+    >
+      {speaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+      {speaking ? "Стоп" : "Озвучить"}
+    </button>
+  );
+}
+
 type Phase = "landing" | "intro" | "prep" | "recording" | "recorded" | "loading" | "feedback";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -144,6 +209,9 @@ export default function SpeakingTestPage() {
   const [error, setError] = useState<string | null>(null);
   const [micDenied, setMicDenied] = useState(false);
   const [showSample, setShowSample] = useState(false);
+  // "full" = all 3 parts, "single" = only the selected part
+  const [mode, setMode] = useState<"full" | "single">("full");
+  const [singlePartIdx, setSinglePartIdx] = useState(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -161,7 +229,8 @@ export default function SpeakingTestPage() {
 
   const part = topics[partIdx];
   const maxPart = topics.length;
-  const isLastPart = partIdx === maxPart - 1;
+  // In single mode, the current part is always the last (and only) part
+  const isLastPart = mode === "single" ? true : partIdx === maxPart - 1;
   const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   // ── Load topics from Supabase ──
@@ -235,6 +304,38 @@ export default function SpeakingTestPage() {
   // Keep currentPartIdxRef in sync so MediaRecorder.onstop knows which part the recording belongs to.
   useEffect(() => { currentPartIdxRef.current = partIdx; }, [partIdx]);
 
+  // Auto-speak question when entering intro phase (simulates examiner)
+  useEffect(() => {
+    if (phase !== "intro") return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+
+    let textToSpeak = "";
+    if ((part?.part === 1 || part?.part === 3) && currentQuestions?.[questionIdx]) {
+      textToSpeak = currentQuestions[questionIdx];
+    } else if (part?.part === 2 && part.topic_text) {
+      const points = (part.cue_card_points as string[] | undefined);
+      textToSpeak = `${part.topic_text}. You should say: ${points?.join(". ") ?? ""}`;
+    }
+    if (!textToSpeak) return;
+
+    // Small delay so the UI renders first
+    const timeout = setTimeout(() => {
+      synth.cancel();
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.lang = "en-GB";
+      utterance.rate = 0.92;
+      const voices = synth.getVoices();
+      const enGB = voices.find((v) => v.lang === "en-GB" && v.name.includes("Google"));
+      const enAny = voices.find((v) => v.lang.startsWith("en"));
+      if (enGB) utterance.voice = enGB;
+      else if (enAny) utterance.voice = enAny;
+      synth.speak(utterance);
+    }, 400);
+
+    return () => { clearTimeout(timeout); synth.cancel(); };
+  }, [phase, partIdx, questionIdx]);
+
   // Cleanup stream on unmount
   useEffect(() => {
     return () => {
@@ -304,8 +405,8 @@ export default function SpeakingTestPage() {
       setRecordTime(0);
     } catch {
       setMicDenied(true);
-      setIsRecording(true);
-      setRecordTime(0);
+      setError("Микрофон недоступен. Разрешите доступ к микрофону в настройках браузера.");
+      setPhase("intro");
     }
   }
 
@@ -403,143 +504,14 @@ export default function SpeakingTestPage() {
 
   // ── Feedback phase ──
   if (phase === "feedback" && feedback) {
-    const overall = feedback.overall_band;
-    const overallColor = overall >= 7 ? "text-[rgb(var(--band-high))]" : overall >= 5.5 ? "text-[rgb(var(--band-mid))]" : "text-[rgb(var(--band-low))]";
-    const overallBorder = overall >= 7 ? "border-[rgb(var(--band-high))]" : overall >= 5.5 ? "border-[rgb(var(--band-mid))]" : "border-[rgb(var(--band-low))]";
-
-    const criteriaList = [
-      { code: "FC", name: "Fluency & Coherence", band: feedback.fluency_coherence },
-      { code: "LR", name: "Lexical Resource", band: feedback.lexical_resource },
-      { code: "GRA", name: "Grammatical Range", band: feedback.grammatical_range },
-      { code: "PR", name: "Pronunciation", band: feedback.pronunciation },
-    ];
-
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
-        <header className="sticky top-0 z-40 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
-          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-2">
-            <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
-              <ChevronLeft className="w-4 h-4" />Dashboard
-            </Link>
-            <div className="flex items-center gap-2 ml-2">
-              <Sparkles className="w-4 h-4 text-[rgb(var(--primary))]" />
-              <span className="font-medium text-sm">AI Speaking Feedback</span>
-            </div>
-          </div>
-        </header>
-
-        <div className="max-w-3xl mx-auto w-full px-4 py-8 flex flex-col gap-6">
-          {/* Score */}
-          <div className="flex flex-col sm:flex-row items-center gap-6 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">
-            <div className={cn("w-24 h-24 rounded-full border-4 flex items-center justify-center shrink-0", overallBorder)}>
-              <span className={cn("font-mono text-3xl font-bold", overallColor)}>{overall.toFixed(1)}</span>
-            </div>
-            <div className="flex-1 w-full">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-[rgb(var(--foreground))]">Speaking Test</span>
-                <Badge variant="default">AI оценка</Badge>
-              </div>
-              <p className="text-sm text-[rgb(var(--muted-foreground))] mb-3">{feedback.summary}</p>
-              <div className="flex flex-col gap-2">
-                {criteriaList.map((c) => <CriteriaBar key={c.code} band={c.band} label={c.code} />)}
-              </div>
-            </div>
-          </div>
-
-          {/* Strengths */}
-          {feedback.strengths.length > 0 && (
-            <div className="bg-[rgb(var(--success)/0.06)] border border-[rgb(var(--success)/0.2)] rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))]" />
-                <span className="font-semibold text-sm">Сильные стороны</span>
-              </div>
-              <ul className="flex flex-col gap-1.5">
-                {feedback.strengths.map((s, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-[rgb(var(--foreground))]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--success))] mt-2 shrink-0" />
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Improvements */}
-          <div className="bg-[rgb(var(--primary)/0.06)] border border-[rgb(var(--primary)/0.15)] rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-[rgb(var(--primary))]" />
-              <span className="font-semibold text-sm">Что улучшить</span>
-            </div>
-            <ol className="flex flex-col gap-4">
-              {feedback.improvements.map((imp, i) => (
-                <li key={i} className="flex gap-3 text-sm">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-[rgb(var(--primary)/0.15)] text-[rgb(var(--primary))] text-xs font-bold flex items-center justify-center mt-0.5">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p className="font-medium text-[rgb(var(--foreground))] mb-0.5">{imp.issue}</p>
-                    {imp.example && <p className="text-[rgb(var(--muted-foreground))] italic text-xs mb-1">«{imp.example}»</p>}
-                    <p className="text-[rgb(var(--foreground))]">{imp.suggestion}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {/* Model phrases */}
-          {feedback.model_phrases?.length > 0 && (
-            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
-              <div className="font-semibold text-sm mb-3">Полезные фразы</div>
-              <div className="flex flex-wrap gap-2">
-                {feedback.model_phrases.map((p, i) => (
-                  <span key={i} className="text-xs bg-[rgb(var(--primary)/0.08)] text-[rgb(var(--primary))] rounded-full px-3 py-1 font-medium">
-                    {p}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Transcript */}
-          {feedback.transcript && !feedback.transcript.includes("[Audio transcription unavailable") && (
-            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
-              <div className="font-semibold text-sm mb-2">Транскрипция</div>
-              <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">{feedback.transcript}</p>
-            </div>
-          )}
-
-          {/* Sample answer */}
-          {topics[1]?.sample_answer && (
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5">
-              <button
-                onClick={() => setShowSample((v) => !v)}
-                className="w-full flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-600" />
-                  <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Образец ответа Band 8+</span>
-                </div>
-                <ChevronDown className={cn("w-4 h-4 text-[rgb(var(--muted-foreground))] transition-transform", showSample && "rotate-180")} />
-              </button>
-              {showSample && (
-                <div className="mt-4 pt-4 border-t border-amber-200">
-                  <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-wrap">{topics[1].sample_answer}</p>
-                  <p className="text-xs text-amber-700 mt-3 italic">
-                    💡 Обрати внимание на структуру (intro → middle → conclusion), линкеры (however, in addition, on the other hand) и idioms.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" asChild><Link href="/dashboard">Dashboard</Link></Button>
-            <Button className="flex-1" onClick={() => { setFeedback(null); setPhase("intro"); setPartIdx(0); setQuestionIdx(0); }}>
-              Ещё практика
-            </Button>
-          </div>
-        </div>
-      </div>
+      <SpeakingReport
+        feedback={feedback}
+        topics={topics}
+        showSample={showSample}
+        setShowSample={setShowSample}
+        onRetry={() => { setFeedback(null); setPhase("landing"); setPartIdx(0); setQuestionIdx(0); setMode("full"); recordingsRef.current = {}; }}
+      />
     );
   }
 
@@ -615,7 +587,7 @@ export default function SpeakingTestPage() {
             </div>
 
             <button
-              onClick={() => { setPartIdx(0); setQuestionIdx(0); setPhase("intro"); }}
+              onClick={() => { setMode("full"); setPartIdx(0); setQuestionIdx(0); recordingsRef.current = {}; setPhase("intro"); }}
               className="w-full bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary)/0.92)] text-white font-semibold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md shadow-[rgb(var(--primary)/0.25)]"
             >
               Начать тест Speaking
@@ -631,7 +603,7 @@ export default function SpeakingTestPage() {
               {[0, 1, 2].map((i) => (
                 <button
                   key={i}
-                  onClick={() => { setPartIdx(i); setQuestionIdx(0); setPhase("intro"); }}
+                  onClick={() => { setMode("single"); setSinglePartIdx(i); setPartIdx(i); setQuestionIdx(0); recordingsRef.current = {}; setPhase("intro"); }}
                   className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
                 >
                   Part {i + 1}
@@ -697,19 +669,22 @@ export default function SpeakingTestPage() {
                     {questionIdx + 1}
                   </span>
                   <span className="text-xs text-[rgb(var(--muted-foreground))]">из {currentQuestions.length} вопросов</span>
-                  <button
-                    onClick={() => {
-                      const q = currentQuestions[questionIdx];
-                      const params = new URLSearchParams({
-                        q: `Помоги подготовиться к Speaking Part ${part.part}, вопрос: "${q}". Подскажи структуру ответа, ключевую лексику, и пример сильного ответа.`,
-                      });
-                      router.push(`/tutor?${params.toString()}`);
-                    }}
-                    className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-                  >
-                    <MessageCircle className="w-3 h-3" />
-                    Спросить ИИ
-                  </button>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <SpeakButton text={currentQuestions[questionIdx]} />
+                    <button
+                      onClick={() => {
+                        const q = currentQuestions[questionIdx];
+                        const params = new URLSearchParams({
+                          q: `Помоги подготовиться к Speaking Part ${part.part}, вопрос: "${q}". Подскажи структуру ответа, ключевую лексику, и пример сильного ответа.`,
+                        });
+                        router.push(`/tutor?${params.toString()}`);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      Спросить ИИ
+                    </button>
+                  </div>
                 </div>
                 <p className="text-lg font-semibold text-[rgb(var(--foreground))] leading-snug">
                   {currentQuestions[questionIdx]}
@@ -724,18 +699,21 @@ export default function SpeakingTestPage() {
                   <div className="flex items-center gap-2 mb-2">
                     <BookOpen className="w-4 h-4 text-[rgb(var(--primary))]" />
                     <span className="text-xs font-semibold text-[rgb(var(--primary))] uppercase tracking-wide">Cue Card</span>
-                    <button
-                      onClick={() => {
-                        const params = new URLSearchParams({
-                          q: `Помоги с Speaking Part 2 cue card: "${part.topic_text}". Подскажи структуру 2-минутного монолога, ключевую лексику и пример идеи для каждого пункта.`,
-                        });
-                        router.push(`/tutor?${params.toString()}`);
-                      }}
-                      className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-                    >
-                      <MessageCircle className="w-3 h-3" />
-                      Спросить ИИ
-                    </button>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <SpeakButton text={`${part.topic_text ?? ""}. You should say: ${cuePoints?.join(". ") ?? ""}`} />
+                      <button
+                        onClick={() => {
+                          const params = new URLSearchParams({
+                            q: `Помоги с Speaking Part 2 cue card: "${part.topic_text}". Подскажи структуру 2-минутного монолога, ключевую лексику и пример идеи для каждого пункта.`,
+                          });
+                          router.push(`/tutor?${params.toString()}`);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                        Спросить ИИ
+                      </button>
+                    </div>
                   </div>
                   <p className="font-semibold text-[rgb(var(--foreground))] leading-snug">{part.topic_text}</p>
                 </div>
@@ -830,6 +808,348 @@ export default function SpeakingTestPage() {
               )}
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CEFR mapping ────────────────────────────────────────────────────────────
+
+function bandToCEFR(band: number): string {
+  if (band >= 8.5) return "C2";
+  if (band >= 7) return "C1";
+  if (band >= 5.5) return "B2";
+  if (band >= 4) return "B1";
+  if (band >= 2.5) return "A2";
+  return "A1";
+}
+
+const CRITERIA_COLORS: Record<string, string> = {
+  FC: "#6366F1",
+  LR: "#F59E0B",
+  GRA: "#818CF8",
+  PR: "#22C55E",
+};
+
+const CRITERIA_DESCRIPTIONS: Record<string, Record<string, string>> = {
+  FC: {
+    high: "Вы говорите свободно с минимальными паузами. Ваша речь связная и логичная.",
+    mid: "Вы говорите с некоторыми паузами и повторами. Связность ответов можно улучшить.",
+    low: "Частые паузы и затруднения в речи. Сложно поддерживать связный ответ.",
+  },
+  LR: {
+    high: "Богатый словарный запас, используете идиомы и коллокации естественно.",
+    mid: "Хороший словарный запас для общих тем, но ограничен для сложных.",
+    low: "Ограниченный словарный запас, частые повторы одних и тех же слов.",
+  },
+  GRA: {
+    high: "Используете сложные грамматические конструкции точно и уверенно.",
+    mid: "Хорошо используете базовые конструкции, но делаете ошибки в сложных.",
+    low: "Много грамматических ошибок даже в простых предложениях.",
+  },
+  PR: {
+    high: "Произношение чёткое, правильное ударение и интонация.",
+    mid: "Произношение понятное, но есть ошибки в ударении и некоторых звуках.",
+    low: "Произношение затрудняет понимание. Нужно работать над звуками и ударением.",
+  },
+};
+
+function criteriaFilter(code: string, issue: string): boolean {
+  const lower = issue.toLowerCase();
+  if (code === "FC") return lower.includes("fluency") || lower.includes("связн") || lower.includes("пауз") || lower.includes("coherence") || lower.includes("плавн");
+  if (code === "LR") return lower.includes("лексик") || lower.includes("словар") || lower.includes("vocab") || lower.includes("lexic") || lower.includes("слов");
+  if (code === "GRA") return lower.includes("грамм") || lower.includes("grammar") || lower.includes("времен") || lower.includes("ошибк");
+  if (code === "PR") return lower.includes("произнош") || lower.includes("pronunc") || lower.includes("ударен") || lower.includes("интон");
+  return false;
+}
+
+// ─── Speaking Report ─────────────────────────────────────────────────────────
+
+function SpeakingReport({
+  feedback,
+  topics,
+  showSample,
+  setShowSample,
+  onRetry,
+}: {
+  feedback: SpeakingFeedback;
+  topics: Topic[];
+  showSample: boolean;
+  setShowSample: (v: boolean) => void;
+  onRetry: () => void;
+}) {
+  const [expandedCriteria, setExpandedCriteria] = useState<string | null>("FC");
+  const [activeTab, setActiveTab] = useState<string>("fluency");
+
+  const overall = feedback.overall_band;
+  const cefr = bandToCEFR(overall);
+
+  const criteriaList = [
+    { code: "FC", name: "Fluency and Coherence", band: feedback.fluency_coherence },
+    { code: "LR", name: "Lexical Resource", band: feedback.lexical_resource },
+    { code: "GRA", name: "Grammatical Range and Accuracy", band: feedback.grammatical_range },
+    { code: "PR", name: "Pronunciation", band: feedback.pronunciation },
+  ];
+
+  const DETAIL_TABS = [
+    { id: "fluency", label: "Fluency", code: "FC" },
+    { id: "vocabulary", label: "Vocabulary", code: "LR" },
+    { id: "pronunciation", label: "Pronunciation", code: "PR" },
+    { id: "grammar", label: "Grammar", code: "GRA" },
+  ];
+
+  const wordCount = feedback.transcript?.split(/\s+/).filter(Boolean).length ?? 0;
+
+  const bandLevel = (b: number) => b >= 7 ? "high" : b >= 5 ? "mid" : "low";
+  const bandColorFn = (b: number) => b >= 7 ? "text-[rgb(var(--band-high))]" : b >= 5.5 ? "text-[rgb(var(--band-mid))]" : b >= 4 ? "text-amber-600" : "text-[rgb(var(--band-low))]";
+
+  return (
+    <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
+      <header className="sticky top-0 z-40 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
+            <ChevronLeft className="w-4 h-4" />Dashboard
+          </Link>
+          <div className="flex items-center gap-2 ml-2">
+            <Sparkles className="w-4 h-4 text-[rgb(var(--primary))]" />
+            <span className="font-medium text-sm">Speaking Report</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-3xl mx-auto w-full px-4 py-8 flex flex-col gap-5">
+
+        {/* ── Score header ── */}
+        <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">
+          <div className="flex items-center gap-6">
+            <div className="flex items-baseline gap-1">
+              <span className={cn("font-mono text-5xl font-bold", bandColorFn(overall))}>{overall.toFixed(1)}</span>
+              <span className="text-xl text-[rgb(var(--muted-foreground))] font-light">/9.0</span>
+            </div>
+            <div className="h-12 w-px bg-[rgb(var(--border))]" />
+            <div>
+              <div className="text-2xl font-bold text-[rgb(var(--foreground))]">{cefr}</div>
+              <div className="text-xs text-[rgb(var(--muted-foreground))]">CEFR</div>
+            </div>
+          </div>
+          <p className="text-sm text-[rgb(var(--muted-foreground))] mt-4 leading-relaxed">{feedback.summary}</p>
+        </div>
+
+        {/* ── Criteria accordion cards ── */}
+        <div className="flex flex-col gap-3">
+          {criteriaList.map((c) => {
+            const isOpen = expandedCriteria === c.code;
+            const color = CRITERIA_COLORS[c.code];
+            const level = bandLevel(c.band);
+            const desc = CRITERIA_DESCRIPTIONS[c.code]?.[level] ?? "";
+            const relatedImprovements = feedback.improvements.filter((imp) => criteriaFilter(c.code, imp.issue));
+
+            return (
+              <div
+                key={c.code}
+                className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl overflow-hidden"
+                style={{ borderLeftWidth: "4px", borderLeftColor: color }}
+              >
+                <button
+                  onClick={() => setExpandedCriteria(isOpen ? null : c.code)}
+                  className="w-full flex items-center gap-3 p-4 hover:bg-[rgb(var(--muted)/0.03)] transition-colors"
+                >
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="font-semibold text-sm text-[rgb(var(--foreground))] flex-1 text-left">{c.name}</span>
+                  <span className={cn("font-mono text-lg font-bold", bandColorFn(c.band))}>{c.band.toFixed(1)}</span>
+                  <ChevronDown className={cn("w-4 h-4 text-[rgb(var(--muted-foreground))] transition-transform", isOpen && "rotate-180")} />
+                </button>
+
+                {isOpen && (
+                  <div className="px-4 pb-4 border-t border-[rgb(var(--border))]">
+                    <div className="mt-3 mb-3">
+                      <div className="h-2 bg-[rgb(var(--surface-elevated))] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${(c.band / 9) * 100}%`, backgroundColor: color }}
+                        />
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed mb-3">{desc}</p>
+
+                    {relatedImprovements.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        {relatedImprovements.map((imp, i) => (
+                          <div key={i} className="bg-[rgb(var(--background))] rounded-lg p-3">
+                            <p className="text-sm font-medium text-[rgb(var(--foreground))] mb-0.5">{imp.issue}</p>
+                            {imp.example && (
+                              <p className="text-xs text-[rgb(var(--muted-foreground))] italic mb-1">«{imp.example}»</p>
+                            )}
+                            <p className="text-sm text-[rgb(var(--foreground))]">{imp.suggestion}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Detailed Feedback ── */}
+        <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl overflow-hidden">
+          <div className="p-5 border-b border-[rgb(var(--border))]">
+            <h3 className="font-bold text-[rgb(var(--foreground))]">Detailed Feedback</h3>
+          </div>
+
+          {feedback.transcript && !feedback.transcript.includes("[Audio transcription unavailable") && (
+            <div className="px-5 py-4 border-b border-[rgb(var(--border))]">
+              <p className="text-xs font-medium text-[rgb(var(--muted-foreground))] uppercase tracking-wider mb-2">Транскрипция</p>
+              <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed bg-[rgb(var(--background))] rounded-lg p-3">
+                {feedback.transcript}
+              </p>
+            </div>
+          )}
+
+          <div className="flex border-b border-[rgb(var(--border))] overflow-x-auto">
+            {DETAIL_TABS.map((tab) => {
+              const color = CRITERIA_COLORS[tab.code];
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors flex-1 justify-center",
+                    isActive ? "text-white" : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] hover:bg-[rgb(var(--muted)/0.05)]"
+                  )}
+                  style={isActive ? { backgroundColor: color } : undefined}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isActive ? "white" : color }} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-5">
+            {DETAIL_TABS.map((tab) => {
+              if (activeTab !== tab.id) return null;
+              const criteria = criteriaList.find((c) => c.code === tab.code);
+              if (!criteria) return null;
+              const level = bandLevel(criteria.band);
+              const desc = CRITERIA_DESCRIPTIONS[tab.code]?.[level] ?? "";
+              const color = CRITERIA_COLORS[tab.code];
+              const tabImprovements = feedback.improvements.filter((imp) => criteriaFilter(tab.code, imp.issue));
+              const displayImprovements = tabImprovements.length > 0 ? tabImprovements : feedback.improvements.slice(0, 2);
+
+              return (
+                <div key={tab.id} className="flex flex-col gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}15` }}>
+                      <span className="font-mono text-xl font-bold" style={{ color }}>{criteria.band.toFixed(1)}</span>
+                    </div>
+                    <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">{desc}</p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-semibold text-[rgb(var(--foreground))] uppercase tracking-wider">Что улучшить</p>
+                    {displayImprovements.map((imp, i) => (
+                      <div key={i} className="bg-[rgb(var(--background))] rounded-lg p-3 border border-[rgb(var(--border))]">
+                        <p className="text-sm font-medium text-[rgb(var(--foreground))]">{imp.issue}</p>
+                        {imp.example && <p className="text-xs text-[rgb(var(--muted-foreground))] italic mt-1">«{imp.example}»</p>}
+                        <p className="text-sm text-[rgb(var(--foreground))] mt-1">{imp.suggestion}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Speech Analysis ── */}
+        {wordCount > 0 && (
+          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-5">
+            <h3 className="font-bold text-[rgb(var(--foreground))] mb-4">Speech Analysis</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[rgb(var(--background))] rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-[rgb(var(--primary))]">{wordCount}</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))] mt-1">слов в ответе</div>
+              </div>
+              <div className="bg-[rgb(var(--background))] rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-[rgb(var(--primary))]">{cefr}</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))] mt-1">уровень речи</div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs text-[rgb(var(--muted-foreground))] mb-2">Темп речи</p>
+              <div className="h-3 rounded-full overflow-hidden" style={{ background: "linear-gradient(to right, #EF4444, #F59E0B, #22C55E, #22C55E, #F59E0B, #EF4444)" }}>
+                <div className="relative h-full">
+                  <div
+                    className="absolute top-0 w-1 h-full bg-[rgb(var(--foreground))] rounded-full shadow-md"
+                    style={{ left: `${Math.min(95, Math.max(5, wordCount > 200 ? 70 : wordCount > 120 ? 50 : wordCount > 60 ? 30 : 15))}%` }}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between mt-1 text-[10px] text-[rgb(var(--muted-foreground))]">
+                <span>Too Slow</span>
+                <span>Normal</span>
+                <span>Too Fast</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Strengths ── */}
+        {feedback.strengths.length > 0 && (
+          <div className="bg-[rgb(var(--success)/0.06)] border border-[rgb(var(--success)/0.2)] rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))]" />
+              <span className="font-semibold text-sm">Сильные стороны</span>
+            </div>
+            <ul className="flex flex-col gap-1.5">
+              {feedback.strengths.map((s, i) => (
+                <li key={i} className="flex gap-2 text-sm text-[rgb(var(--foreground))]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--success))] mt-2 shrink-0" />
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ── Model phrases ── */}
+        {feedback.model_phrases?.length > 0 && (
+          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-5">
+            <div className="font-semibold text-sm mb-3">Полезные фразы</div>
+            <div className="flex flex-wrap gap-2">
+              {feedback.model_phrases.map((p, i) => (
+                <span key={i} className="text-xs bg-[rgb(var(--primary)/0.08)] text-[rgb(var(--primary))] rounded-full px-3 py-1.5 font-medium">{p}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Sample answer ── */}
+        {topics[1]?.sample_answer && (
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5">
+            <button onClick={() => setShowSample(!showSample)} className="w-full flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Образец ответа Band 8+</span>
+              </div>
+              <ChevronDown className={cn("w-4 h-4 text-[rgb(var(--muted-foreground))] transition-transform", showSample && "rotate-180")} />
+            </button>
+            {showSample && (
+              <div className="mt-4 pt-4 border-t border-amber-200">
+                <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-wrap">{topics[1].sample_answer}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Actions ── */}
+        <div className="flex gap-3">
+          <Button variant="outline" className="flex-1" asChild><Link href="/dashboard">Dashboard</Link></Button>
+          <Button className="flex-1" onClick={onRetry}>Ещё практика</Button>
         </div>
       </div>
     </div>

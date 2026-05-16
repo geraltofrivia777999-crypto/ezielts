@@ -11,7 +11,7 @@
 // Both bugs are fixed here.
 // ============================================================================
 
-export type ReadingQuestionType = "mcq" | "tfng";
+export type ReadingQuestionType = "mcq" | "tfng" | "matching" | "text";
 
 export type TestQuestion = {
   id: string;
@@ -22,6 +22,7 @@ export type TestQuestion = {
   /** Index of the correct option, or `null` if the answer is free-text and
    *  the question is not auto-gradable client-side. */
   answer: number | null;
+  expectedText?: string;
 };
 
 export type ReadingPassage = {
@@ -64,7 +65,7 @@ export function answerToIndex(
   const upper = answer.trim().toUpperCase();
   if (!upper) return null;
   // Single-letter shortcut
-  if (/^[A-D]$/.test(upper)) {
+  if (/^[A-J]$/.test(upper)) {
     const idx = upper.charCodeAt(0) - 65;
     return idx < options.length ? idx : null;
   }
@@ -117,21 +118,33 @@ export function mapDbToReadingTest(raw: any): ReadingTest {
 
     for (const group of section.reading_question_groups ?? []) {
       const instruction = (group.instruction as string) ?? "";
-      const qType: ReadingQuestionType = group.question_type === "tfng" ? "tfng" : "mcq";
+      const rawType = String(group.question_type ?? "mcq");
+      const qType: ReadingQuestionType =
+        rawType === "tfng"
+          ? "tfng"
+          : rawType === "matching"
+            ? "matching"
+            : rawType === "completion" || rawType === "short_answer"
+              ? "text"
+              : "mcq";
       for (const q of group.reading_questions ?? []) {
         // Skip rows that the legacy importer corrupted — see content-filter.ts
         // for the full taxonomy of "garbage row" patterns.
         const check = validateQuestionRow(q.question_text, q.correct_answer);
         if (!check.ok) continue;
 
-        const opts = parseOptions(q.options, qType === "tfng" ? TFNG_OPTIONS : MCQ_OPTIONS);
+        const opts = qType === "text"
+          ? []
+          : parseOptions(q.options, qType === "tfng" ? TFNG_OPTIONS : MCQ_OPTIONS);
+        const correct = normaliseAnswer(q.correct_answer);
         passage.questions.push({
           id: String(q.id),
           type: qType,
           instruction,
           text: String(q.question_text ?? ""),
           options: opts,
-          answer: answerToIndex(normaliseAnswer(q.correct_answer), opts),
+          answer: qType === "text" ? null : answerToIndex(correct, opts),
+          expectedText: qType === "text" ? correct : undefined,
         });
       }
     }
@@ -154,5 +167,21 @@ export function countReadingQuestions(test: ReadingTest): number {
 
 /** Flat iterator over every auto-gradable (answer != null) question in the test. */
 export function gradableQuestions(test: ReadingTest): TestQuestion[] {
-  return test.passages.flatMap((p) => p.questions).filter((q) => q.answer !== null);
+  return test.passages
+    .flatMap((p) => p.questions)
+    .filter((q) => q.answer !== null || Boolean(q.expectedText));
+}
+
+/** Same normalization as Listening text answers: case-insensitive, trim, ignore trailing punctuation. */
+export function matchesReadingText(userInput: string, expected: string | undefined): boolean {
+  if (!expected) return false;
+  const norm = (s: string) => s.toLowerCase().trim().replace(/[.,!?;:]+$/g, "");
+  return norm(userInput) === norm(expected);
+}
+
+export function isReadingAnswerCorrect(q: TestQuestion, userAnswer: number | string | undefined): boolean {
+  if (q.type === "text") {
+    return typeof userAnswer === "string" && matchesReadingText(userAnswer, q.expectedText);
+  }
+  return typeof userAnswer === "number" && q.answer !== null && userAnswer === q.answer;
 }

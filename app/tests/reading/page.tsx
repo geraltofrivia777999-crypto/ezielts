@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,11 @@ import {
   Flag,
   AlertTriangle,
   Loader2,
+  Eye,
+  MessageCircle,
+  Send,
+  ArrowRight,
+  Target,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getNextReading, saveAttempt } from "@/lib/supabase/queries";
@@ -27,6 +32,7 @@ import {
   READING_TIME_LIMIT_SEC,
   countReadingQuestions,
   gradableQuestions,
+  isReadingAnswerCorrect,
 } from "@/lib/test-mapping/reading";
 
 // ─── Fallback test (used until the real test loads from Supabase) ────────────
@@ -146,7 +152,274 @@ function ReadingSkeleton() {
   );
 }
 
+type ReadingMode = "exam" | "practice";
+type ReadingSession = { kind: "full" } | { kind: "passage"; partNumber: number };
+type AiMessage = { role: "user" | "assistant"; content: string };
+type QuestionAiState = {
+  open: boolean;
+  loading: boolean;
+  error: string | null;
+  messages: AiMessage[];
+  draft: string;
+};
+
+function emptyAiState(): QuestionAiState {
+  return { open: false, loading: false, error: null, messages: [], draft: "" };
+}
+
+function ReadingStartScreen({
+  test,
+  mode,
+  onModeChange,
+  onStartFull,
+  onStartPassage,
+}: {
+  test: ReadingTest;
+  mode: ReadingMode;
+  onModeChange: (mode: ReadingMode) => void;
+  onStartFull: () => void;
+  onStartPassage: (partNumber: number) => void;
+}) {
+  const questionCount = countReadingQuestions(test);
+
+  return (
+    <div className="min-h-screen bg-[rgb(var(--background))]">
+      <header className="bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
+          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] shrink-0">
+            <ChevronLeft className="w-4 h-4" />
+            <span>Dashboard</span>
+          </Link>
+          <div className="flex items-center gap-2 min-w-0">
+            <BookOpen className="w-4 h-4 text-blue-500" />
+            <span className="text-sm font-medium truncate">IELTS Reading</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto flex min-h-[calc(100vh-56px)] max-w-5xl items-center justify-center px-4 py-10">
+        <div className="w-full max-w-xl rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-sm">
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <BookOpen className="h-7 w-7" />
+            </div>
+            <h1 className="text-2xl font-bold text-[rgb(var(--foreground))]">IELTS Reading</h1>
+            <p className="mt-1 text-sm text-[rgb(var(--muted-foreground))]">
+              3 passages с вопросами на понимание академического текста
+            </p>
+          </div>
+
+          <div className="mt-6 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="text-xl font-bold text-blue-600">60 мин</div>
+              <div className="text-xs text-[rgb(var(--muted-foreground))]">Время</div>
+            </div>
+            <div>
+              <div className="text-xl font-bold text-blue-600">{questionCount}</div>
+              <div className="text-xs text-[rgb(var(--muted-foreground))]">Вопросов</div>
+            </div>
+            <div>
+              <div className="text-xl font-bold text-blue-600">{test.passages.length}</div>
+              <div className="text-xs text-[rgb(var(--muted-foreground))]">Passages</div>
+            </div>
+          </div>
+
+          <div className="mt-7">
+            <h2 className="text-sm font-semibold text-[rgb(var(--foreground))]">Формат теста</h2>
+            <ul className="mt-3 space-y-2 text-sm text-[rgb(var(--muted-foreground))]">
+              <li>• 3 passages: от более простого текста к сложному академическому</li>
+              <li>• В Exam режиме работает таймер и авто-завершение</li>
+              <li>• Типы вопросов: multiple choice, TRUE/FALSE/NOT GIVEN, matching, completion</li>
+              <li>• Оценка: Band Score от 1 до 9</li>
+            </ul>
+          </div>
+
+          <div className="mt-5 rounded-xl bg-[rgb(var(--surface-elevated))] px-3 py-2 text-xs text-[rgb(var(--muted-foreground))]">
+            В Practice режиме можно спокойно тренировать отдельный passage
+          </div>
+
+          <div className="mt-6">
+            <p className="mb-2 text-center text-xs font-medium text-[rgb(var(--foreground))]">Режим прохождения</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(["exam", "practice"] as ReadingMode[]).map((item) => {
+                const active = mode === item;
+                const Icon = item === "exam" ? Clock : Target;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => onModeChange(item)}
+                    className={cn(
+                      "rounded-xl border p-3 text-center transition-colors",
+                      active
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-[rgb(var(--border))] bg-[rgb(var(--surface))] hover:border-blue-300"
+                    )}
+                  >
+                    <Icon className="mx-auto mb-2 h-4 w-4 text-blue-600" />
+                    <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
+                      {item === "exam" ? "Exam" : "Practice"}
+                    </div>
+                    <div className="mt-1 text-xs text-[rgb(var(--muted-foreground))]">
+                      {item === "exam" ? "Таймер и band score" : "Без давления по времени"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <Button size="lg" className="mt-5 w-full" onClick={onStartFull}>
+            Начать тест Reading
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+
+          <div className="mt-4">
+            <p className="mb-2 text-center text-xs text-[rgb(var(--muted-foreground))]">Или практикуйте отдельные passages</p>
+            <div className="grid grid-cols-3 gap-2">
+              {test.passages.map((passage) => (
+                <button
+                  key={passage.id}
+                  type="button"
+                  onClick={() => onStartPassage(passage.partNumber)}
+                  className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] px-3 py-2 text-sm font-medium text-[rgb(var(--foreground))] hover:border-blue-300 hover:bg-blue-50"
+                >
+                  Passage {passage.partNumber}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 // ─── Question component ──────────────────────────────────────────────────────
+
+function readingCorrectAnswer(q: TestQuestion): string {
+  if (q.type === "text") return q.expectedText ?? "—";
+  if (typeof q.answer === "number") {
+    const label = q.type === "mcq" || q.type === "matching" ? `${String.fromCharCode(65 + q.answer)}. ` : "";
+    return `${label}${q.options[q.answer] ?? "—"}`;
+  }
+  return "—";
+}
+
+function readingUserAnswer(q: TestQuestion, value: number | string | undefined): string {
+  if (typeof value === "number") {
+    const label = q.type === "mcq" || q.type === "matching" ? `${String.fromCharCode(65 + value)}. ` : "";
+    return `${label}${q.options[value] ?? value}`;
+  }
+  return typeof value === "string" ? value : "";
+}
+
+function QuestionSupportPanel({
+  q,
+  number,
+  revealed,
+  aiState,
+  onToggleAnswer,
+  onAskAi,
+  onAiDraftChange,
+}: {
+  q: TestQuestion;
+  number: number;
+  revealed: boolean;
+  aiState: QuestionAiState;
+  onToggleAnswer: () => void;
+  onAskAi: (message?: string) => void;
+  onAiDraftChange: (value: string) => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-col gap-2 text-xs">
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={onToggleAnswer}
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-2 font-medium text-[rgb(var(--foreground))] hover:border-blue-300"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Ответ
+        </button>
+        <button
+          type="button"
+          onClick={() => onAskAi()}
+          disabled={aiState.loading}
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 font-medium text-blue-600 hover:border-blue-400 disabled:opacity-60"
+        >
+          {aiState.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+          ИИ
+        </button>
+      </div>
+
+      {revealed && (
+        <div className="rounded-lg border border-[rgb(var(--success)/0.25)] bg-[rgb(var(--success)/0.07)] px-2.5 py-2 text-[rgb(var(--foreground))]">
+          <span className="font-semibold text-[rgb(var(--success))]">Ответ {number}: </span>
+          <span>{readingCorrectAnswer(q)}</span>
+        </div>
+      )}
+
+      {aiState.open && (
+        <div className="w-full min-w-72 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3 text-left shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-[rgb(var(--foreground))]">
+            <MessageCircle className="h-3.5 w-3.5 text-blue-600" />
+            <span className="font-semibold">Разбор вопроса {number}</span>
+          </div>
+          {aiState.error && (
+            <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-red-700">
+              {aiState.error}
+            </div>
+          )}
+          <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+            {aiState.messages.map((message, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "rounded-lg px-2.5 py-2 leading-relaxed",
+                  message.role === "user"
+                    ? "ml-6 bg-blue-50 text-[rgb(var(--foreground))]"
+                    : "mr-6 bg-[rgb(var(--surface-elevated))] text-[rgb(var(--foreground))]"
+                )}
+              >
+                {message.content}
+              </div>
+            ))}
+            {aiState.loading && (
+              <div className="mr-6 inline-flex items-center gap-2 rounded-lg bg-[rgb(var(--surface-elevated))] px-2.5 py-2 text-[rgb(var(--muted-foreground))]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ИИ думает...
+              </div>
+            )}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              type="text"
+              value={aiState.draft}
+              onChange={(e) => onAiDraftChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && aiState.draft.trim() && !aiState.loading) {
+                  onAskAi(aiState.draft);
+                }
+              }}
+              placeholder="Уточнить вопрос..."
+              className="min-w-0 flex-1 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-2.5 py-2 text-xs focus:outline-none focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => aiState.draft.trim() && onAskAi(aiState.draft)}
+              disabled={aiState.loading || !aiState.draft.trim()}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white disabled:opacity-50"
+              aria-label="Отправить уточнение"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function QuestionItem({
   q,
@@ -154,13 +427,71 @@ function QuestionItem({
   userAnswer,
   onAnswer,
   showResult,
+  revealed = false,
+  aiState = emptyAiState(),
+  onToggleAnswer,
+  onAskAi,
+  onAiDraftChange,
 }: {
   q: TestQuestion;
   globalIndex: number;
-  userAnswer: number | undefined;
-  onAnswer: (idx: number) => void;
+  userAnswer: number | string | undefined;
+  onAnswer: (idx: number | string) => void;
   showResult: boolean;
+  revealed?: boolean;
+  aiState?: QuestionAiState;
+  onToggleAnswer?: () => void;
+  onAskAi?: (message?: string) => void;
+  onAiDraftChange?: (value: string) => void;
 }) {
+  if (q.type === "text") {
+    const textValue = typeof userAnswer === "string" ? userAnswer : "";
+    const correct = isReadingAnswerCorrect(q, userAnswer);
+    return (
+      <div className="flex flex-col gap-3 pb-6 border-b border-[rgb(var(--border))] last:border-0 last:pb-0">
+        <p className="text-xs text-[rgb(var(--muted-foreground))] italic">{q.instruction}</p>
+        <div className="flex gap-2">
+          <span className="shrink-0 w-6 h-6 rounded-full bg-[rgb(var(--primary)/0.1)] text-[rgb(var(--primary))] text-xs font-bold flex items-center justify-center mt-0.5">
+            {globalIndex + 1}
+          </span>
+          <p className="font-medium text-sm text-[rgb(var(--foreground))] leading-snug">{q.text}</p>
+        </div>
+        <div className="ml-8 flex flex-col gap-2">
+          <input
+            value={textValue}
+            disabled={showResult}
+            onChange={(e) => onAnswer(e.target.value)}
+            placeholder="Введите ответ"
+            className={cn(
+              "w-full px-3.5 py-2.5 rounded-xl border text-sm bg-[rgb(var(--surface))] outline-none transition-all",
+              !showResult && "border-[rgb(var(--border))] focus:border-[rgb(var(--primary))]",
+              showResult && correct && "border-[rgb(var(--success))] bg-[rgb(var(--success)/0.07)]",
+              showResult && !correct && "border-[rgb(var(--destructive))] bg-[rgb(var(--destructive)/0.07)]"
+            )}
+          />
+          {showResult && (
+            <p className="text-xs text-[rgb(var(--muted-foreground))]">
+              Правильный ответ: <span className="font-medium text-[rgb(var(--foreground))]">{q.expectedText}</span>
+            </p>
+          )}
+        </div>
+        {onToggleAnswer && onAskAi && onAiDraftChange && (
+          <div className="ml-8">
+            <QuestionSupportPanel
+              q={q}
+              number={globalIndex + 1}
+              revealed={revealed}
+              aiState={aiState}
+              onToggleAnswer={onToggleAnswer}
+              onAskAi={onAskAi}
+              onAiDraftChange={onAiDraftChange}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3 pb-6 border-b border-[rgb(var(--border))] last:border-0 last:pb-0">
       <p className="text-xs text-[rgb(var(--muted-foreground))] italic">{q.instruction}</p>
@@ -227,7 +558,7 @@ function QuestionItem({
                   state === "selected" && "text-[rgb(var(--primary))] font-medium"
                 )}
               >
-                {q.type === "mcq" ? (
+              {q.type === "mcq" || q.type === "matching" ? (
                   <>
                     <span className="font-bold mr-1">{String.fromCharCode(65 + i)}.</span>
                     {opt}
@@ -240,6 +571,19 @@ function QuestionItem({
           );
         })}
       </div>
+      {onToggleAnswer && onAskAi && onAiDraftChange && (
+        <div className="ml-8">
+          <QuestionSupportPanel
+            q={q}
+            number={globalIndex + 1}
+            revealed={revealed}
+            aiState={aiState}
+            onToggleAnswer={onToggleAnswer}
+            onAskAi={onAskAi}
+            onAiDraftChange={onAiDraftChange}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -263,8 +607,12 @@ export default function ReadingTestPage() {
   const [test, setTest] = useState<ReadingTest | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPart, setCurrentPart] = useState(1); // 1, 2 or 3
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<Record<string, number | string>>({});
+  const [revealedAnswers, setRevealedAnswers] = useState<Set<string>>(() => new Set());
+  const [aiStates, setAiStates] = useState<Record<string, QuestionAiState>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [session, setSession] = useState<ReadingSession | null>(null);
+  const [mode, setMode] = useState<ReadingMode>("exam");
   const [timeLeft, setTimeLeft] = useState(READING_TIME_LIMIT_SEC);
   const userIdRef = useRef<string | null>(null);
 
@@ -304,8 +652,28 @@ export default function ReadingTestPage() {
   }, []);
 
   // ── Derived data ──
-  const totalQ = test ? countReadingQuestions(test) : 0;
-  const answered = Object.keys(answers).length;
+  const activePassages = useMemo<ReadingPassage[]>(() => {
+    if (!test || !session) return [];
+    return session.kind === "passage"
+      ? test.passages.filter((p) => p.partNumber === session.partNumber)
+      : test.passages;
+  }, [test, session]);
+
+  const activeTest = useMemo<ReadingTest | null>(() => {
+    if (!test || !session) return null;
+    return { ...test, passages: activePassages };
+  }, [test, session, activePassages]);
+
+  const activeTimeLimit = session?.kind === "passage" ? 20 * 60 : READING_TIME_LIMIT_SEC;
+  const totalQ = activeTest ? countReadingQuestions(activeTest) : 0;
+  const answered = activeTest
+    ? activeTest.passages
+      .flatMap((p) => p.questions)
+      .filter((q) => {
+        const value = answers[q.id];
+        return typeof value === "string" ? value.trim().length > 0 : value !== undefined;
+      }).length
+    : 0;
 
   // Build a global numbering map so question N keeps its number across passages
   const globalIndex = useMemo(() => {
@@ -319,22 +687,22 @@ export default function ReadingTestPage() {
   }, [test]);
 
   const score = useMemo(() => {
-    if (!test || !submitted) return 0;
-    return gradableQuestions(test).filter((q) => answers[q.id] === q.answer).length;
-  }, [test, submitted, answers]);
+    if (!activeTest || !submitted) return 0;
+    return gradableQuestions(activeTest).filter((q) => isReadingAnswerCorrect(q, answers[q.id])).length;
+  }, [activeTest, submitted, answers]);
 
-  const gradableCount = test ? gradableQuestions(test).length : 0;
+  const gradableCount = activeTest ? gradableQuestions(activeTest).length : 0;
   const band = submitted && gradableCount > 0 ? rawToBand(score, gradableCount) : null;
 
   // ── Submit ──
   const handleSubmit = useCallback(async () => {
-    if (!test) return;
+    if (!test || !activeTest) return;
     setSubmitted(true);
     if (userIdRef.current && test.id !== "fallback") {
       try {
         const sb = createClient();
-        const correct = gradableQuestions(test).filter((q) => answers[q.id] === q.answer).length;
-        const total = gradableQuestions(test).length;
+        const correct = gradableQuestions(activeTest).filter((q) => isReadingAnswerCorrect(q, answers[q.id])).length;
+        const total = gradableQuestions(activeTest).length;
         await saveAttempt(sb, {
           user_id: userIdRef.current,
           content_type: "reading",
@@ -343,40 +711,164 @@ export default function ReadingTestPage() {
           band_score: rawToBand(correct, total),
           raw_score: correct,
           total_questions: total,
-          time_spent: READING_TIME_LIMIT_SEC - timeLeft,
+          time_spent: mode === "exam" ? activeTimeLimit - timeLeft : 0,
           ai_feedback: null,
           completed_at: new Date().toISOString(),
         });
       } catch { /* non-fatal */ }
     }
-  }, [test, answers, timeLeft]);
+  }, [test, activeTest, answers, mode, activeTimeLimit, timeLeft]);
 
   // ── Countdown timer (real, with auto-submit at 0) ──
   useEffect(() => {
-    if (loading || submitted || timeLeft <= 0) return;
+    if (loading || !session || mode !== "exam" || submitted || timeLeft <= 0) return;
     const t = setInterval(() => setTimeLeft((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
-  }, [loading, submitted, timeLeft]);
+  }, [loading, session, mode, submitted, timeLeft]);
 
   // Separate effect: when the clock hits zero, schedule a submit on the next
   // tick. Deferring with setTimeout(0) avoids cascading renders inside the
   // effect (React rule: no setState calls during effect setup).
   useEffect(() => {
-    if (loading || submitted || timeLeft !== 0) return;
+    if (loading || !session || mode !== "exam" || submitted || timeLeft !== 0) return;
     const id = setTimeout(() => { handleSubmit(); }, 0);
     return () => clearTimeout(id);
-  }, [loading, submitted, timeLeft, handleSubmit]);
+  }, [loading, session, mode, submitted, timeLeft, handleSubmit]);
 
-  function handleAnswer(qId: string, optIdx: number) {
-    setAnswers((prev) => ({ ...prev, [qId]: optIdx }));
+  function handleAnswer(qId: string, value: number | string) {
+    setAnswers((prev) => ({ ...prev, [qId]: value }));
   }
+
+  function startSession(nextSession: ReadingSession) {
+    setSession(nextSession);
+    setCurrentPart(nextSession.kind === "passage" ? nextSession.partNumber : 1);
+    setAnswers({});
+    setRevealedAnswers(new Set());
+    setAiStates({});
+    setSubmitted(false);
+    setTimeLeft(nextSession.kind === "passage" ? 20 * 60 : READING_TIME_LIMIT_SEC);
+  }
+
+  const toggleRevealedAnswer = useCallback((qId: string) => {
+    setRevealedAnswers((prev) => {
+      const next = new Set(prev);
+      if (next.has(qId)) next.delete(qId);
+      else next.add(qId);
+      return next;
+    });
+  }, []);
+
+  const updateAiDraft = useCallback((qId: string, value: string) => {
+    setAiStates((prev) => ({
+      ...prev,
+      [qId]: { ...(prev[qId] ?? emptyAiState()), draft: value, open: true },
+    }));
+  }, []);
+
+  const askQuestionAi = useCallback(async (
+    q: TestQuestion,
+    number: number,
+    passage: ReadingPassage,
+    message?: string
+  ) => {
+    const current = aiStates[q.id] ?? emptyAiState();
+    const trimmedMessage = message?.trim();
+
+    if (!trimmedMessage && current.open && !current.loading) {
+      setAiStates((prev) => ({
+        ...prev,
+        [q.id]: { ...(prev[q.id] ?? emptyAiState()), open: false },
+      }));
+      return;
+    }
+
+    if (!trimmedMessage && current.messages.length > 0) {
+      setAiStates((prev) => ({
+        ...prev,
+        [q.id]: { ...(prev[q.id] ?? emptyAiState()), open: true },
+      }));
+      return;
+    }
+
+    const outgoingMessages: AiMessage[] = trimmedMessage
+      ? [...current.messages, { role: "user", content: trimmedMessage }]
+      : current.messages;
+
+    setAiStates((prev) => ({
+      ...prev,
+      [q.id]: {
+        ...(prev[q.id] ?? emptyAiState()),
+        open: true,
+        loading: true,
+        error: null,
+        draft: "",
+        messages: outgoingMessages,
+      },
+    }));
+
+    try {
+      const res = await fetch("/api/ai/reading-explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionNumber: number,
+          questionText: q.text,
+          instruction: q.instruction,
+          options: q.options,
+          correctAnswer: readingCorrectAnswer(q),
+          userAnswer: readingUserAnswer(q, answers[q.id]),
+          passageText: passage.passageText,
+          messages: outgoingMessages,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || "ИИ сейчас недоступен.");
+      }
+      const explanation = String(data.explanation || "").trim();
+      setAiStates((prev) => ({
+        ...prev,
+        [q.id]: {
+          ...(prev[q.id] ?? emptyAiState()),
+          open: true,
+          loading: false,
+          error: null,
+          messages: [...outgoingMessages, { role: "assistant", content: explanation || "Нет ответа." }],
+          draft: "",
+        },
+      }));
+    } catch (err) {
+      setAiStates((prev) => ({
+        ...prev,
+        [q.id]: {
+          ...(prev[q.id] ?? emptyAiState()),
+          open: true,
+          loading: false,
+          error: err instanceof Error ? err.message : "Не удалось получить объяснение.",
+          messages: outgoingMessages,
+          draft: trimmedMessage ?? "",
+        },
+      }));
+    }
+  }, [aiStates, answers]);
 
   // ── Render: loading ──
   if (loading || !test) return <ReadingSkeleton />;
+  if (!session) {
+    return (
+      <ReadingStartScreen
+        test={test}
+        mode={mode}
+        onModeChange={setMode}
+        onStartFull={() => startSession({ kind: "full" })}
+        onStartPassage={(partNumber) => startSession({ kind: "passage", partNumber })}
+      />
+    );
+  }
 
   // Flatten all questions for the ErrorAnalysis component on results screen.
   // It accepts answer: number | null — we keep null for non-gradable to skip them.
-  const allQuestionsForAnalysis = test.passages.flatMap((p) =>
+  const allQuestionsForAnalysis = activePassages.flatMap((p) =>
     p.questions
       .filter((q): q is TestQuestion & { answer: number } => q.answer !== null)
       .map((q) => ({
@@ -387,6 +879,10 @@ export default function ReadingTestPage() {
         answer: q.answer,
       }))
   );
+  const numericAnswers: Record<string, number> = {};
+  for (const [qid, value] of Object.entries(answers)) {
+    if (typeof value === "number") numericAnswers[qid] = value;
+  }
 
   // ── Render: results ──
   if (submitted && band !== null) {
@@ -420,29 +916,26 @@ export default function ReadingTestPage() {
           </div>
 
           {allQuestionsForAnalysis.length > 0 && (
-            <ErrorAnalysis questions={allQuestionsForAnalysis} userAnswers={answers} />
+            <ErrorAnalysis questions={allQuestionsForAnalysis} userAnswers={numericAnswers} />
           )}
 
           {/* Per-passage review */}
-          {test.passages.map((p) => (
+          {activePassages.map((p) => (
             <div key={p.id} className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">
               <h2 className="font-semibold text-[rgb(var(--foreground))] mb-5">
                 Passage {p.partNumber} — разбор
               </h2>
               <div className="flex flex-col gap-6">
-                {p.questions.map((q) => {
-                  if (q.answer === null) return null; // non-gradable
-                  return (
-                    <QuestionItem
-                      key={q.id}
-                      q={q as TestQuestion}
-                      globalIndex={globalIndex.get(q.id) ?? 0}
-                      userAnswer={answers[q.id]}
-                      onAnswer={() => {}}
-                      showResult={true}
-                    />
-                  );
-                })}
+                {p.questions.map((q) => (
+                  <QuestionItem
+                    key={q.id}
+                    q={q as TestQuestion}
+                    globalIndex={globalIndex.get(q.id) ?? 0}
+                    userAnswer={answers[q.id]}
+                    onAnswer={() => {}}
+                    showResult={true}
+                  />
+                ))}
               </div>
             </div>
           ))}
@@ -451,8 +944,17 @@ export default function ReadingTestPage() {
             <Button variant="outline" className="flex-1" asChild>
               <Link href="/dashboard">На Dashboard</Link>
             </Button>
-            <Button className="flex-1" asChild>
-              <Link href="/tests/reading">Следующий тест</Link>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setSession(null);
+                setSubmitted(false);
+                setAnswers({});
+                setRevealedAnswers(new Set());
+                setAiStates({});
+              }}
+            >
+              К выбору режима
             </Button>
           </div>
         </div>
@@ -462,8 +964,8 @@ export default function ReadingTestPage() {
 
   // ── Render: active test ──
   const passage: ReadingPassage =
-    test.passages.find((p) => p.partNumber === currentPart) ?? test.passages[0];
-  const lowTime = timeLeft < 5 * 60;
+    activePassages.find((p) => p.partNumber === currentPart) ?? activePassages[0];
+  const lowTime = mode === "exam" && timeLeft < 5 * 60;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[rgb(var(--background))]">
@@ -482,7 +984,7 @@ export default function ReadingTestPage() {
             <div className="flex items-center gap-2">
               <BookOpen className="w-3.5 h-3.5 text-blue-500 shrink-0" />
               <span className="text-sm font-medium text-[rgb(var(--foreground))] truncate">
-                {test.title}
+                {session.kind === "passage" ? `${test.title} · Passage ${session.partNumber}` : test.title}
               </span>
               {test.source && (
                 <Badge variant="outline" className="hidden sm:flex text-[10px]">{test.source}</Badge>
@@ -506,7 +1008,7 @@ export default function ReadingTestPage() {
             )}
           >
             <Clock className={cn("w-3.5 h-3.5", lowTime ? "text-[rgb(var(--destructive))]" : "text-[rgb(var(--warning))]")} />
-            {formatTime(timeLeft)}
+            {mode === "exam" ? formatTime(timeLeft) : "Practice"}
           </div>
 
           <Button size="sm" className="shrink-0" onClick={handleSubmit}>
@@ -517,7 +1019,7 @@ export default function ReadingTestPage() {
 
         {/* Passage tabs (Part 1 / 2 / 3) */}
         <nav className="border-t border-[rgb(var(--border))] flex">
-          {test.passages.map((p) => {
+          {activePassages.map((p) => {
             const partAnswered = p.questions.filter((q) => answers[q.id] !== undefined).length;
             const isActive = p.partNumber === currentPart;
             return (
@@ -594,29 +1096,7 @@ export default function ReadingTestPage() {
               </span>
             </div>
 
-            {passage.questions.map((q) => {
-              // Free-text questions (answer === null) cannot be auto-graded in v1.
-              // Show them but with a clear notice instead of fake options.
-              if (q.answer === null) {
-                return (
-                  <div
-                    key={q.id}
-                    className="flex flex-col gap-2 pb-6 border-b border-[rgb(var(--border))] last:border-0 last:pb-0"
-                  >
-                    <p className="text-xs text-[rgb(var(--muted-foreground))] italic">{q.instruction}</p>
-                    <div className="flex gap-2">
-                      <span className="shrink-0 w-6 h-6 rounded-full bg-[rgb(var(--primary)/0.1)] text-[rgb(var(--primary))] text-xs font-bold flex items-center justify-center mt-0.5">
-                        {(globalIndex.get(q.id) ?? 0) + 1}
-                      </span>
-                      <p className="font-medium text-sm text-[rgb(var(--foreground))] leading-snug">{q.text}</p>
-                    </div>
-                    <div className="ml-8 text-xs text-[rgb(var(--muted-foreground))] italic">
-                      Этот тип вопроса (free-text) пока недоступен для авто-проверки. Он будет добавлен в следующей версии.
-                    </div>
-                  </div>
-                );
-              }
-              return (
+            {passage.questions.map((q) => (
                 <QuestionItem
                   key={q.id}
                   q={q as TestQuestion}
@@ -624,13 +1104,17 @@ export default function ReadingTestPage() {
                   userAnswer={answers[q.id]}
                   onAnswer={(idx) => handleAnswer(q.id, idx)}
                   showResult={false}
+                  revealed={revealedAnswers.has(q.id)}
+                  aiState={aiStates[q.id] ?? emptyAiState()}
+                  onToggleAnswer={() => toggleRevealedAnswer(q.id)}
+                  onAskAi={(message) => askQuestionAi(q as TestQuestion, (globalIndex.get(q.id) ?? 0) + 1, passage, message)}
+                  onAiDraftChange={(value) => updateAiDraft(q.id, value)}
                 />
-              );
-            })}
+            ))}
 
             {/* Cross-passage navigation */}
             <div className="flex gap-2 pt-2">
-              {currentPart > 1 && (
+              {session.kind === "full" && currentPart > Math.min(...activePassages.map((p) => p.partNumber)) && (
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -639,7 +1123,7 @@ export default function ReadingTestPage() {
                   ← Passage {currentPart - 1}
                 </Button>
               )}
-              {currentPart < test.passages.length && (
+              {session.kind === "full" && currentPart < Math.max(...activePassages.map((p) => p.partNumber)) && (
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -654,7 +1138,7 @@ export default function ReadingTestPage() {
               <Flag className="w-4 h-4" />
               Сдать тест ({answered}/{totalQ} отвечено)
             </Button>
-            {answered < totalQ && (
+            {mode === "exam" && answered < totalQ && (
               <p className="text-xs text-center text-[rgb(var(--muted-foreground))]">
                 Можно сдать в любой момент — таймер автоматически завершит тест на 0:00.
               </p>

@@ -86,17 +86,30 @@ Give reasons for your answer and include any relevant examples from your own kno
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WritingTestPage() {
+  // ── Mode: "full" = both tasks, "single" = practice one task ──
+  const [mode, setMode] = useState<"full" | "single">("single");
+  const [activeTab, setActiveTab] = useState<"task1" | "task2">("task1");
+
+  // ── Single-mode state (practice one task) ──
   const [task, setTask] = useState<WritingTask>(FALLBACK_TASK);
-  const [taskLoading, setTaskLoading] = useState(true);
   const [text, setText] = useState("");
+  const [feedback, setFeedback] = useState<WritingFeedback | null>(null);
+
+  // ── Full-mode state (both tasks) ──
+  const [task1, setTask1] = useState<WritingTask | null>(null);
+  const [task2, setTask2] = useState<WritingTask>(FALLBACK_TASK);
+  const [text1, setText1] = useState("");
+  const [text2, setText2] = useState("");
+  const [feedback1, setFeedback1] = useState<WritingFeedback | null>(null);
+  const [feedback2, setFeedback2] = useState<WritingFeedback | null>(null);
+
+  // ── Shared state ──
+  const [taskLoading, setTaskLoading] = useState(true);
   const [phase, setPhase] = useState<"intro" | "write" | "loading" | "feedback">("intro");
   const [preferredTaskType, setPreferredTaskType] = useState<"task1" | "task2" | null>(null);
   const [loadingText, setLoadingText] = useState("");
-  const [feedback, setFeedback] = useState<WritingFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
-  // IELTS Writing total = 60 minutes. We use a hard COUNTDOWN, not a count-up,
-  // because the real exam ends abruptly and candidates must train for it.
   const WRITING_TOTAL_SECONDS = 60 * 60;
   const [timeLeft, setTimeLeft] = useState(WRITING_TOTAL_SECONDS);
   const [showSample, setShowSample] = useState(false);
@@ -105,29 +118,56 @@ export default function WritingTestPage() {
   const loadingRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const minWords = task.min_words ?? 250;
-  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  // ── Derived values that adapt to mode ──
+  const activeTask = mode === "full"
+    ? (activeTab === "task1" ? task1 : task2)
+    : task;
+  const activeText = mode === "full"
+    ? (activeTab === "task1" ? text1 : text2)
+    : text;
+  const setActiveText = mode === "full"
+    ? (activeTab === "task1" ? setText1 : setText2)
+    : setText;
+
+  const minWords = activeTask?.min_words ?? (activeTab === "task1" ? 150 : 250);
+  const wordCount = activeText.trim() ? activeText.trim().split(/\s+/).length : 0;
   const isUnderMin = wordCount < minWords;
   const wordCountColor = wordCount >= minWords ? "text-[rgb(var(--success))]"
     : wordCount >= minWords * 0.8 ? "text-[rgb(var(--warning))]"
     : "text-[rgb(var(--muted-foreground))]";
-  const taskTypeLabel = task.task_type === "task1" ? "Task 1" : "Task 2";
+  const taskTypeLabel = activeTask?.task_type === "task1" ? "Task 1" : "Task 2";
 
-  // ── Load task from Supabase (refetch when preferredTaskType changes) ──
+  // Full-mode word counts for tab badges
+  const wordCount1 = text1.trim() ? text1.trim().split(/\s+/).length : 0;
+  const wordCount2 = text2.trim() ? text2.trim().split(/\s+/).length : 0;
+  const canSubmitFull = wordCount2 >= (task2.min_words ?? 250);
+
+  // ── Load task(s) from Supabase ──
   useEffect(() => {
+    if (phase !== "write") return;
     async function loadTask() {
       try {
         setTaskLoading(true);
         const sb = createClient();
         const { data: { user } } = await sb.auth.getUser();
         if (!user) { setTaskLoading(false); return; }
-        const next = await getNextWriting(sb, user.id, preferredTaskType ?? undefined);
-        if (next) setTask(next);
+
+        if (mode === "full") {
+          const [t1, t2] = await Promise.all([
+            getNextWriting(sb, user.id, "task1"),
+            getNextWriting(sb, user.id, "task2"),
+          ]);
+          setTask1(t1);
+          if (t2) setTask2(t2);
+        } else {
+          const next = await getNextWriting(sb, user.id, preferredTaskType ?? undefined);
+          if (next) setTask(next);
+        }
       } catch { /* use fallback */ }
       finally { setTaskLoading(false); }
     }
     loadTask();
-  }, [preferredTaskType]);
+  }, [phase, mode, preferredTaskType]);
 
   const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -135,9 +175,8 @@ export default function WritingTestPage() {
   useEffect(() => {
     if (phase !== "write") return;
     if (timeLeft <= 0) {
-      // Time's up — force-submit whatever the user has written (only if they
-      // wrote enough to be graded; otherwise just stop the timer).
-      if (!autoSubmittedRef.current && !isUnderMin) {
+      const canAutoSubmit = mode === "full" ? canSubmitFull : !isUnderMin;
+      if (!autoSubmittedRef.current && canAutoSubmit) {
         autoSubmittedRef.current = true;
         handleSubmit();
       }
@@ -153,52 +192,79 @@ export default function WritingTestPage() {
 
   // ── Submit: call AI API ──
   async function handleSubmit() {
-    if (isUnderMin) return;
     if (timerRef.current) clearInterval(timerRef.current);
     setPhase("loading");
     setError(null);
 
-    const dots = [
-      "Анализируем ответ.",
-      "Анализируем ответ..",
-      "Анализируем ответ...",
-      "Оцениваем по критериям IELTS.",
-      "Оцениваем по критериям IELTS..",
-      "Генерируем фидбек...",
-    ];
-    let i = 0;
-    setLoadingText(dots[0]);
-    loadingRef.current = setInterval(() => {
-      i = (i + 1) % dots.length;
-      setLoadingText(dots[i]);
-    }, 700);
+    if (loadingRef.current) clearInterval(loadingRef.current);
+    let dotIdx = 0;
 
-    try {
-      const res = await fetch("/api/ai/writing", {
+    function startDots(msgs: string[]) {
+      dotIdx = 0;
+      setLoadingText(msgs[0]);
+      loadingRef.current = setInterval(() => {
+        dotIdx = (dotIdx + 1) % msgs.length;
+        setLoadingText(msgs[dotIdx]);
+      }, 700);
+    }
+
+    function stopDots() {
+      if (loadingRef.current) { clearInterval(loadingRef.current); loadingRef.current = null; }
+    }
+
+    async function submitOne(essay: string, t: WritingTask) {
+      return fetch("/api/ai/writing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          essay: text,
-          prompt: task.prompt_text,
-          taskType: task.task_type,
-          contentId: task.id !== "fallback" ? task.id : null,
+          essay,
+          prompt: t.prompt_text,
+          taskType: t.task_type,
+          contentId: t.id !== "fallback" ? t.id : null,
         }),
       });
+    }
 
-      if (loadingRef.current) clearInterval(loadingRef.current);
+    try {
+      if (mode === "single") {
+        if (isUnderMin) { setPhase("write"); return; }
+        startDots(["Анализируем ответ.", "Анализируем ответ..", "Анализируем ответ...", "Оцениваем по критериям IELTS.", "Оцениваем по критериям IELTS..", "Генерируем фидбек..."]);
+        const res = await submitOne(text, task);
+        stopDots();
+        if (res.status === 429) { setShowPaywall(true); setPhase("write"); return; }
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        setFeedback(await res.json());
+        setPhase("feedback");
+      } else {
+        // Full mode: submit Task 1 (if available + enough words), then Task 2
+        const hasTask1 = task1 && wordCount1 >= (task1.min_words ?? 150);
+        if (!canSubmitFull) { setPhase("write"); return; }
 
-      if (res.status === 429) {
-        setShowPaywall(true);
-        setPhase("write");
-        return;
+        if (hasTask1 && task1) {
+          startDots(["Оцениваем Task 1.", "Оцениваем Task 1..", "Оцениваем Task 1..."]);
+          const res1 = await submitOne(text1, task1);
+          stopDots();
+          if (res1.status === 429) { setShowPaywall(true); setPhase("write"); return; }
+          if (res1.ok) {
+            setFeedback1(await res1.json());
+          }
+        }
+
+        startDots(["Оцениваем Task 2.", "Оцениваем Task 2..", "Оцениваем Task 2...", "Генерируем фидбек..."]);
+        const res2 = await submitOne(text2, task2);
+        stopDots();
+        if (res2.status === 429) {
+          setShowPaywall(true);
+          if (!feedback1) { setPhase("write"); return; }
+          setPhase("feedback");
+          return;
+        }
+        if (!res2.ok) throw new Error(`API error ${res2.status}`);
+        setFeedback2(await res2.json());
+        setPhase("feedback");
       }
-      if (!res.ok) throw new Error(`API error ${res.status}`);
-
-      const parsed: WritingFeedback = await res.json();
-      setFeedback(parsed);
-      setPhase("feedback");
-    } catch (err) {
-      if (loadingRef.current) clearInterval(loadingRef.current);
+    } catch {
+      stopDots();
       setError("Не удалось получить фидбек. Проверьте интернет и попробуйте снова.");
       setPhase("write");
     }
@@ -235,18 +301,177 @@ export default function WritingTestPage() {
     );
   }
 
-  // ── Feedback phase ──
-  if (phase === "feedback" && feedback) {
-    const overall = feedback.overall_band;
+  // ── Render one task's feedback block ──
+  function renderTaskFeedback(fb: WritingFeedback, taskLabel: string, essayText: string, essayWordCount: number, sampleAnswer?: string | null) {
+    const overall = fb.overall_band;
     const overallColor = overall >= 7 ? "text-[rgb(var(--band-high))]" : overall >= 5.5 ? "text-[rgb(var(--band-mid))]" : "text-[rgb(var(--band-low))]";
     const overallBorder = overall >= 7 ? "border-[rgb(var(--band-high))]" : overall >= 5.5 ? "border-[rgb(var(--band-mid))]" : "border-[rgb(var(--band-low))]";
-
     const criteriaList = [
-      { name: "Task Achievement", code: "TA", ...feedback.criteria.task_achievement },
-      { name: "Coherence & Cohesion", code: "CC", ...feedback.criteria.coherence_cohesion },
-      { name: "Lexical Resource", code: "LR", ...feedback.criteria.lexical_resource },
-      { name: "Grammatical Range & Accuracy", code: "GRA", ...feedback.criteria.grammatical_range },
+      { name: "Task Achievement", code: "TA", ...fb.criteria.task_achievement },
+      { name: "Coherence & Cohesion", code: "CC", ...fb.criteria.coherence_cohesion },
+      { name: "Lexical Resource", code: "LR", ...fb.criteria.lexical_resource },
+      { name: "Grammatical Range & Accuracy", code: "GRA", ...fb.criteria.grammatical_range },
     ];
+
+    return (
+      <>
+        {/* Overall score */}
+        <div className="flex flex-col sm:flex-row items-center gap-6 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">
+          <div className={cn("w-24 h-24 rounded-full border-4 flex items-center justify-center shrink-0", overallBorder)}>
+            <span className={cn("font-mono text-3xl font-bold", overallColor)}>{overall.toFixed(1)}</span>
+          </div>
+          <div className="flex-1 w-full">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-semibold text-[rgb(var(--foreground))]">Writing {taskLabel}</span>
+              <Badge variant="default">AI оценка</Badge>
+            </div>
+            <p className="text-sm text-[rgb(var(--muted-foreground))] mb-3">{fb.summary}</p>
+            <div className="flex flex-col gap-2">
+              {criteriaList.map((c) => <CriteriaBar key={c.code} band={c.band} label={c.code} />)}
+            </div>
+          </div>
+        </div>
+
+        {/* Strengths */}
+        {fb.strengths.length > 0 && (
+          <div className="bg-[rgb(var(--success)/0.06)] border border-[rgb(var(--success)/0.2)] rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))]" />
+              <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Сильные стороны</span>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {fb.strengths.map((s, i) => (
+                <li key={i} className="flex gap-2.5 text-sm text-[rgb(var(--foreground))]">
+                  <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[rgb(var(--success))] mt-2" />
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Criteria detail */}
+        <div className="flex flex-col gap-4">
+          {criteriaList.map((c) => {
+            const bandColor = c.band >= 7 ? "text-[rgb(var(--band-high))]" : c.band >= 5.5 ? "text-[rgb(var(--band-mid))]" : "text-[rgb(var(--band-low))]";
+            const bgColor = c.band >= 7 ? "bg-[rgb(var(--band-high)/0.06)] border-[rgb(var(--band-high)/0.2)]"
+              : c.band >= 5.5 ? "bg-[rgb(var(--band-mid)/0.06)] border-[rgb(var(--band-mid)/0.2)]"
+              : "bg-[rgb(var(--band-low)/0.06)] border-[rgb(var(--band-low)/0.2)]";
+            return (
+              <div key={c.code} className={cn("rounded-xl border p-4 flex gap-4", bgColor)}>
+                <div className="shrink-0 text-center">
+                  <div className={cn("font-mono text-xl font-bold", bandColor)}>{c.band.toFixed(1)}</div>
+                  <div className="text-[10px] text-[rgb(var(--muted-foreground))] font-medium mt-0.5">{c.code}</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-sm text-[rgb(var(--foreground))] mb-1">{c.name}</div>
+                  <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">{c.comment}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Improvements */}
+        <div className="bg-[rgb(var(--primary)/0.06)] border border-[rgb(var(--primary)/0.15)] rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-[rgb(var(--primary))]" />
+            <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Что улучшить</span>
+          </div>
+          <ol className="flex flex-col gap-4">
+            {fb.improvements.map((imp, i) => (
+              <li key={i} className="flex gap-3 text-sm">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-[rgb(var(--primary)/0.15)] text-[rgb(var(--primary))] text-xs font-bold flex items-center justify-center mt-0.5">
+                  {i + 1}
+                </span>
+                <div>
+                  <p className="font-medium text-[rgb(var(--foreground))] mb-0.5">{imp.issue}</p>
+                  {imp.example && (
+                    <p className="text-[rgb(var(--muted-foreground))] italic text-xs mb-1">«{imp.example}»</p>
+                  )}
+                  <p className="text-[rgb(var(--foreground))]">{imp.suggestion}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {/* Corrected intro */}
+        {fb.corrected_intro && (
+          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <PenLine className="w-4 h-4 text-teal-500" />
+              <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Улучшенное вступление</span>
+            </div>
+            <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed italic">{fb.corrected_intro}</p>
+          </div>
+        )}
+
+        {/* Your essay */}
+        <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Ваш ответ</span>
+            <span className="text-xs text-[rgb(var(--muted-foreground))]">{essayWordCount} слов</span>
+          </div>
+          <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed whitespace-pre-wrap">{essayText}</p>
+        </div>
+
+        {/* Sample answer (Band 8+) */}
+        {sampleAnswer && (
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5">
+            <button
+              onClick={() => setShowSample((v) => !v)}
+              className="w-full flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Образец ответа Band 8+</span>
+                <Badge variant="secondary" className="text-[10px]">Эталон</Badge>
+              </div>
+              <ChevronDown className={cn("w-4 h-4 text-[rgb(var(--muted-foreground))] transition-transform", showSample && "rotate-180")} />
+            </button>
+            {showSample && (
+              <div className="mt-4 pt-4 border-t border-amber-200">
+                <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-wrap">{sampleAnswer}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ── Feedback phase ──
+  if (phase === "feedback" && (feedback || feedback1 || feedback2)) {
+    // Compute combined overall band for full mode
+    const combinedBand = mode === "full"
+      ? (feedback1 && feedback2
+        ? Math.round(((feedback1.overall_band + feedback2.overall_band * 2) / 3) * 2) / 2
+        : feedback2?.overall_band ?? feedback1?.overall_band ?? 0)
+      : (feedback?.overall_band ?? 0);
+
+    const combinedColor = combinedBand >= 7 ? "text-[rgb(var(--band-high))]" : combinedBand >= 5.5 ? "text-[rgb(var(--band-mid))]" : "text-[rgb(var(--band-low))]";
+    const combinedBorder = combinedBand >= 7 ? "border-[rgb(var(--band-high))]" : combinedBand >= 5.5 ? "border-[rgb(var(--band-mid))]" : "border-[rgb(var(--band-low))]";
+
+    function handleNewTask() {
+      if (mode === "full") {
+        setFeedback1(null); setFeedback2(null);
+        setText1(""); setText2("");
+        setActiveTab("task1");
+      } else {
+        setFeedback(null); setText("");
+      }
+      setTimeLeft(WRITING_TOTAL_SECONDS);
+      autoSubmittedRef.current = false;
+      setPhase("write");
+    }
+
+    function handleRewrite() {
+      setTimeLeft(WRITING_TOTAL_SECONDS);
+      autoSubmittedRef.current = false;
+      if (mode === "full") { setActiveTab("task1"); }
+      setPhase("write");
+    }
 
     return (
       <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
@@ -263,139 +488,52 @@ export default function WritingTestPage() {
         </header>
 
         <div className="max-w-3xl mx-auto w-full px-4 py-8 flex flex-col gap-6">
-          {/* Overall score */}
-          <div className="flex flex-col sm:flex-row items-center gap-6 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">
-            <div className={cn("w-24 h-24 rounded-full border-4 flex items-center justify-center shrink-0", overallBorder)}>
-              <span className={cn("font-mono text-3xl font-bold", overallColor)}>{overall.toFixed(1)}</span>
-            </div>
-            <div className="flex-1 w-full">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-[rgb(var(--foreground))]">Writing {taskTypeLabel}</span>
-                <Badge variant="default">AI оценка</Badge>
+          {/* Combined overall for full mode */}
+          {mode === "full" && (
+            <div className="flex flex-col items-center gap-3 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">
+              <div className={cn("w-28 h-28 rounded-full border-4 flex items-center justify-center", combinedBorder)}>
+                <span className={cn("font-mono text-4xl font-bold", combinedColor)}>{combinedBand.toFixed(1)}</span>
               </div>
-              <p className="text-sm text-[rgb(var(--muted-foreground))] mb-3">{feedback.summary}</p>
-              <div className="flex flex-col gap-2">
-                {criteriaList.map((c) => <CriteriaBar key={c.code} band={c.band} label={c.code} />)}
+              <div className="text-center">
+                <span className="font-semibold text-[rgb(var(--foreground))]">Writing — общий балл</span>
+                <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1">Task 1 + Task 2 (взвешенная оценка)</p>
               </div>
-            </div>
-          </div>
-
-          {/* Strengths */}
-          {feedback.strengths.length > 0 && (
-            <div className="bg-[rgb(var(--success)/0.06)] border border-[rgb(var(--success)/0.2)] rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))]" />
-                <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Сильные стороны</span>
-              </div>
-              <ul className="flex flex-col gap-2">
-                {feedback.strengths.map((s, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm text-[rgb(var(--foreground))]">
-                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[rgb(var(--success))] mt-2" />
-                    {s}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
 
-          {/* Criteria detail */}
-          <div className="flex flex-col gap-4">
-            {criteriaList.map((c) => {
-              const bandColor = c.band >= 7 ? "text-[rgb(var(--band-high))]" : c.band >= 5.5 ? "text-[rgb(var(--band-mid))]" : "text-[rgb(var(--band-low))]";
-              const bgColor = c.band >= 7 ? "bg-[rgb(var(--band-high)/0.06)] border-[rgb(var(--band-high)/0.2)]"
-                : c.band >= 5.5 ? "bg-[rgb(var(--band-mid)/0.06)] border-[rgb(var(--band-mid)/0.2)]"
-                : "bg-[rgb(var(--band-low)/0.06)] border-[rgb(var(--band-low)/0.2)]";
-              return (
-                <div key={c.code} className={cn("rounded-xl border p-4 flex gap-4", bgColor)}>
-                  <div className="shrink-0 text-center">
-                    <div className={cn("font-mono text-xl font-bold", bandColor)}>{c.band.toFixed(1)}</div>
-                    <div className="text-[10px] text-[rgb(var(--muted-foreground))] font-medium mt-0.5">{c.code}</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-sm text-[rgb(var(--foreground))] mb-1">{c.name}</div>
-                    <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">{c.comment}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {/* Single mode feedback */}
+          {mode === "single" && feedback && renderTaskFeedback(feedback, taskTypeLabel, text, wordCount, task.sample_answer)}
 
-          {/* Improvements */}
-          <div className="bg-[rgb(var(--primary)/0.06)] border border-[rgb(var(--primary)/0.15)] rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-[rgb(var(--primary))]" />
-              <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Что улучшить</span>
-            </div>
-            <ol className="flex flex-col gap-4">
-              {feedback.improvements.map((imp, i) => (
-                <li key={i} className="flex gap-3 text-sm">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-[rgb(var(--primary)/0.15)] text-[rgb(var(--primary))] text-xs font-bold flex items-center justify-center mt-0.5">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <p className="font-medium text-[rgb(var(--foreground))] mb-0.5">{imp.issue}</p>
-                    {imp.example && (
-                      <p className="text-[rgb(var(--muted-foreground))] italic text-xs mb-1">«{imp.example}»</p>
-                    )}
-                    <p className="text-[rgb(var(--foreground))]">{imp.suggestion}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {/* Corrected intro */}
-          {feedback.corrected_intro && (
-            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <PenLine className="w-4 h-4 text-teal-500" />
-                <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Улучшенное вступление</span>
-              </div>
-              <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed italic">{feedback.corrected_intro}</p>
-            </div>
+          {/* Full mode: Task 1 feedback */}
+          {mode === "full" && feedback1 && (
+            <>
+              <h2 className="text-lg font-bold text-[rgb(var(--foreground))] mt-2">Task 1</h2>
+              {renderTaskFeedback(feedback1, "Task 1", text1, wordCount1, task1?.sample_answer)}
+            </>
           )}
 
-          {/* Your essay */}
-          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Ваш ответ</span>
-              <span className="text-xs text-[rgb(var(--muted-foreground))]">{wordCount} слов</span>
-            </div>
-            <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed whitespace-pre-wrap">{text}</p>
-          </div>
+          {/* Full mode: Task 2 feedback */}
+          {mode === "full" && feedback2 && (
+            <>
+              <h2 className="text-lg font-bold text-[rgb(var(--foreground))] mt-4 pt-4 border-t border-[rgb(var(--border))]">Task 2</h2>
+              {renderTaskFeedback(feedback2, "Task 2", text2, wordCount2, task2.sample_answer)}
+            </>
+          )}
 
-          {/* Sample answer (Band 8+) */}
-          {task.sample_answer && (
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5">
-              <button
-                onClick={() => setShowSample((v) => !v)}
-                className="w-full flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-600" />
-                  <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Образец ответа Band 8+</span>
-                  <Badge variant="secondary" className="text-[10px]">Эталон</Badge>
-                </div>
-                <ChevronDown className={cn("w-4 h-4 text-[rgb(var(--muted-foreground))] transition-transform", showSample && "rotate-180")} />
-              </button>
-              {showSample && (
-                <div className="mt-4 pt-4 border-t border-amber-200">
-                  <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-wrap">{task.sample_answer}</p>
-                  <p className="text-xs text-amber-700 mt-3 italic">
-                    💡 Сравни структуру и лексику с своим ответом. Подмечай linking words и сложные грамматические конструкции.
-                  </p>
-                </div>
-              )}
+          {/* Full mode: note if Task 1 was skipped */}
+          {mode === "full" && !feedback1 && (
+            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-4 text-sm text-[rgb(var(--muted-foreground))] text-center">
+              Task 1 не был оценён — ответ слишком короткий или задание недоступно.
             </div>
           )}
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1 gap-2" onClick={() => { setFeedback(null); setPhase("write"); setText(""); }}>
+            <Button variant="outline" className="flex-1 gap-2" onClick={handleNewTask}>
               <RotateCcw className="w-4 h-4" />
               Новое задание
             </Button>
-            <Button variant="outline" className="flex-1 gap-2" onClick={() => { setPhase("write"); }}>
+            <Button variant="outline" className="flex-1 gap-2" onClick={handleRewrite}>
               <PenLine className="w-4 h-4" />
               Переписать
             </Button>
@@ -461,7 +599,7 @@ export default function WritingTestPage() {
             </div>
 
             <button
-              onClick={() => { setPreferredTaskType(null); setPhase("write"); }}
+              onClick={() => { setMode("full"); setPreferredTaskType(null); setPhase("write"); }}
               className="w-full bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary)/0.92)] text-white font-semibold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md shadow-[rgb(var(--primary)/0.25)]"
             >
               Начать тест Writing
@@ -475,13 +613,13 @@ export default function WritingTestPage() {
             </div>
             <div className="grid grid-cols-2 gap-2 w-full">
               <button
-                onClick={() => { setPreferredTaskType("task1"); setPhase("write"); }}
+                onClick={() => { setMode("single"); setPreferredTaskType("task1"); setPhase("write"); }}
                 className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
               >
                 Task 1
               </button>
               <button
-                onClick={() => { setPreferredTaskType("task2"); setPhase("write"); }}
+                onClick={() => { setMode("single"); setPreferredTaskType("task2"); setPhase("write"); }}
                 className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
               >
                 Task 2
@@ -509,6 +647,16 @@ export default function WritingTestPage() {
   }
 
   // ── Write phase ──
+  const submitDisabled = mode === "full" ? !canSubmitFull : isUnderMin;
+  const headerLabel = mode === "full" ? "Writing Test" : `Writing ${taskTypeLabel}`;
+  const promptText = activeTask?.prompt_text ?? "";
+  const promptImage = activeTask?.image_url ?? null;
+  const task1Unavailable = mode === "full" && !task1 && !taskLoading;
+
+  // Word count color helpers for tab badges
+  const wc1Color = wordCount1 >= (task1?.min_words ?? 150) ? "text-[rgb(var(--success))]" : "text-[rgb(var(--muted-foreground))]";
+  const wc2Color = wordCount2 >= (task2.min_words ?? 250) ? "text-[rgb(var(--success))]" : "text-[rgb(var(--muted-foreground))]";
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[rgb(var(--background))]">
       <header className="shrink-0 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))] z-40">
@@ -520,7 +668,7 @@ export default function WritingTestPage() {
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <PenLine className="w-3.5 h-3.5 text-teal-500 shrink-0" />
             <span className="text-sm font-medium text-[rgb(var(--foreground))] truncate">
-              Writing {taskTypeLabel}
+              {headerLabel}
               {taskLoading && <span className="text-[rgb(var(--muted-foreground))]"> · загрузка...</span>}
             </span>
           </div>
@@ -537,7 +685,7 @@ export default function WritingTestPage() {
           <button
             onClick={() => {
               const params = new URLSearchParams({
-                q: `Помоги с Writing ${taskTypeLabel}: "${task.prompt_text?.slice(0, 300) ?? ""}". Подскажи структуру ответа, какие linking words использовать, и какие grammar-конструкции покажут Band 7+.`,
+                q: `Помоги с Writing ${taskTypeLabel}: "${promptText.slice(0, 300)}". Подскажи структуру ответа, какие linking words использовать, и какие grammar-конструкции покажут Band 7+.`,
               });
               window.open(`/tutor?${params.toString()}`, "_blank");
             }}
@@ -546,12 +694,47 @@ export default function WritingTestPage() {
             <MessageCircle className="w-3.5 h-3.5" />
             Спросить ИИ
           </button>
-          <Button size="sm" disabled={isUnderMin} onClick={handleSubmit} className="shrink-0 gap-1.5">
+          <Button size="sm" disabled={submitDisabled} onClick={handleSubmit} className="shrink-0 gap-1.5">
             <Zap className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">AI Feedback</span>
           </Button>
         </div>
       </header>
+
+      {/* Tab bar for full mode */}
+      {mode === "full" && (
+        <div className="shrink-0 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))] px-4">
+          <div className="max-w-5xl mx-auto flex">
+            {(["task1", "task2"] as const).map((tab) => {
+              const isActive = activeTab === tab;
+              const label = tab === "task1" ? "Task 1" : "Task 2";
+              const wc = tab === "task1" ? wordCount1 : wordCount2;
+              const wcColor = tab === "task1" ? wc1Color : wc2Color;
+              const minW = tab === "task1" ? (task1?.min_words ?? 150) : (task2.min_words ?? 250);
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "relative px-4 py-2.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "text-[rgb(var(--primary))]"
+                      : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]"
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    {label}
+                    <span className={cn("text-xs font-mono", wcColor)}>{wc}/{minW}</span>
+                  </span>
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[rgb(var(--primary))] rounded-t" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700 text-center">
@@ -565,50 +748,71 @@ export default function WritingTestPage() {
       )}
       {outOfTime && (
         <div className="bg-[rgb(var(--destructive)/0.12)] border-b border-[rgb(var(--destructive)/0.3)] px-4 py-1.5 text-xs text-[rgb(var(--destructive))] text-center font-semibold">
-          Время вышло. {isUnderMin ? "Эссе слишком короткое для AI-оценки — продолжайте писать или сдайте." : "Идёт автоматическая отправка…"}
+          Время вышло. {submitDisabled ? "Эссе слишком короткое для AI-оценки — продолжайте писать или сдайте." : "Идёт автоматическая отправка…"}
         </div>
       )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Prompt */}
         <div className="w-2/5 hidden md:flex flex-col border-r border-[rgb(var(--border))] overflow-y-auto p-6">
-          <Badge variant="outline" className="mb-4 self-start">
-            {taskTypeLabel} · мин. {minWords} слов
-          </Badge>
-          {task.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={task.image_url}
-              alt="Task 1 chart"
-              className="w-full rounded-lg border border-[rgb(var(--border))] mb-4 bg-white"
-            />
+          {task1Unavailable && activeTab === "task1" ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center gap-3">
+              <PenLine className="w-8 h-8 text-[rgb(var(--muted-foreground))]" />
+              <p className="text-sm text-[rgb(var(--muted-foreground))]">Задания Task 1 скоро будут добавлены.</p>
+              <button
+                onClick={() => setActiveTab("task2")}
+                className="text-sm text-[rgb(var(--primary))] hover:underline font-medium"
+              >
+                Перейти к Task 2
+              </button>
+            </div>
+          ) : (
+            <>
+              <Badge variant="outline" className="mb-4 self-start">
+                {taskTypeLabel} · мин. {minWords} слов
+              </Badge>
+              {promptImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={promptImage}
+                  alt="Task 1 chart"
+                  className="w-full rounded-lg border border-[rgb(var(--border))] mb-4 bg-white"
+                />
+              )}
+              <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-line">
+                {promptText}
+              </p>
+            </>
           )}
-          <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-line">
-            {task.prompt_text}
-          </p>
         </div>
 
         {/* Editor */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="md:hidden shrink-0 bg-[rgb(var(--surface-elevated))] border-b border-[rgb(var(--border))] px-4 py-2">
-            <details>
-              <summary className="text-xs text-[rgb(var(--primary))] font-medium cursor-pointer">Показать задание</summary>
-              {task.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={task.image_url} alt="Task 1 chart" className="w-full rounded-lg border border-[rgb(var(--border))] my-2 bg-white" />
-              )}
-              <p className="text-xs text-[rgb(var(--foreground))] mt-2 leading-relaxed whitespace-pre-line">{task.prompt_text}</p>
-            </details>
+            {task1Unavailable && activeTab === "task1" ? (
+              <p className="text-xs text-[rgb(var(--muted-foreground))]">Задания Task 1 скоро будут добавлены. <button onClick={() => setActiveTab("task2")} className="text-[rgb(var(--primary))] hover:underline">Перейти к Task 2</button></p>
+            ) : (
+              <details>
+                <summary className="text-xs text-[rgb(var(--primary))] font-medium cursor-pointer">Показать задание</summary>
+                {promptImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={promptImage} alt="Task 1 chart" className="w-full rounded-lg border border-[rgb(var(--border))] my-2 bg-white" />
+                )}
+                <p className="text-xs text-[rgb(var(--foreground))] mt-2 leading-relaxed whitespace-pre-line">{promptText}</p>
+              </details>
+            )}
           </div>
 
           <textarea
             ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Начните писать эссе здесь..."
+            value={activeText}
+            onChange={(e) => setActiveText(e.target.value)}
+            placeholder={task1Unavailable && activeTab === "task1" ? "Task 1 пока недоступен..." : "Начните писать эссе здесь..."}
+            disabled={task1Unavailable && activeTab === "task1"}
             className={cn(
               "flex-1 w-full resize-none p-6 bg-transparent text-[rgb(var(--foreground))] text-[15px] leading-relaxed",
-              "placeholder:text-[rgb(var(--muted))] focus:outline-none"
+              "placeholder:text-[rgb(var(--muted))] focus:outline-none",
+              task1Unavailable && activeTab === "task1" && "opacity-50 cursor-not-allowed"
             )}
             autoFocus
           />
@@ -630,7 +834,7 @@ export default function WritingTestPage() {
                 </span>
               )}
             </div>
-            <Button size="sm" disabled={isUnderMin} onClick={handleSubmit} className="gap-1.5">
+            <Button size="sm" disabled={submitDisabled} onClick={handleSubmit} className="gap-1.5">
               <Zap className="w-3.5 h-3.5" />
               Получить AI Feedback
             </Button>
