@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { Suspense, useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSpeakingTopics } from "@/lib/supabase/queries";
 import { parseSpeakingTopic } from "@/lib/test-mapping/content-filter";
@@ -196,8 +196,11 @@ type Topic = {
   sample_answer?: string | null;
 };
 
-export default function SpeakingTestPage() {
+function SpeakingTestPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedTopicId = searchParams.get("id");
+  const selectedPart = Number(searchParams.get("part"));
   const [topics, setTopics] = useState<Topic[]>(FALLBACK_TOPICS as Topic[]);
   const [partIdx, setPartIdx] = useState(0);
   const [questionIdx, setQuestionIdx] = useState(0);
@@ -239,6 +242,31 @@ export default function SpeakingTestPage() {
     async function load() {
       try {
         const sb = createClient();
+        if (selectedTopicId && [1, 2, 3].includes(selectedPart)) {
+          const { data: selected } = await (sb as any)
+            .from("speaking_topics")
+            .select("*")
+            .eq("id", selectedTopicId)
+            .single();
+          if (cancelled) return;
+          if (selected) {
+            const parsed = parseSpeakingTopic(selected.topic_text);
+            const fallback = FALLBACK_TOPICS[(selectedPart || 1) - 1];
+            const selectedTopic: Topic = {
+              id: selected.id,
+              part: selected.part,
+              topic_text: parsed.text.trim().length > 5 ? parsed.text : fallback.topic_text,
+              questions: selected.follow_up_questions ?? fallback.questions,
+              cue_card_points: selected.cue_card_points ?? parsed.bullets ?? fallback.cue_card_points,
+              sample_answer: selected.sample_answer,
+            };
+            setTopics([selectedTopic]);
+            setPartIdx(0);
+            setSinglePartIdx(0);
+            setMode("single");
+            return;
+          }
+        }
         // Fetch all 3 parts in parallel (previously sequential — 3× latency).
         const [p1, p2, p3] = await Promise.all([
           getSpeakingTopics(sb, 1, 1),
@@ -299,7 +327,7 @@ export default function SpeakingTestPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedPart, selectedTopicId]);
 
   // Keep currentPartIdxRef in sync so MediaRecorder.onstop knows which part the recording belongs to.
   useEffect(() => { currentPartIdxRef.current = partIdx; }, [partIdx]);
@@ -485,7 +513,7 @@ export default function SpeakingTestPage() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (res.status === 429 || res.status === 400) {
+        if (res.status === 403 || res.status === 429 || res.status === 400) {
           setError(data.message ?? "Ошибка. Попробуйте снова.");
           setPhase("recorded");
           return;
@@ -811,6 +839,20 @@ export default function SpeakingTestPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SpeakingTestPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[rgb(var(--primary))]" />
+        </div>
+      }
+    >
+      <SpeakingTestPageContent />
+    </Suspense>
   );
 }
 

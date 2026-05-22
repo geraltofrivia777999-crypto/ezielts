@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -21,7 +22,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getNextWriting } from "@/lib/supabase/queries";
+import { getNextWriting, getWritingTask } from "@/lib/supabase/queries";
 import type { Database } from "@/lib/supabase/types";
 
 type WritingTask = Database["public"]["Tables"]["writing_tasks"]["Row"];
@@ -64,6 +65,276 @@ function CriteriaBar({ band, label }: { band: number; label: string }) {
   );
 }
 
+type GeneratedTask1Visual =
+  | { kind: "table"; title: string; description: string; headers: string[]; rows: Array<{ label: string; values: number[] }> }
+  | { kind: "bar"; title: string; description: string; unit: string; bars: Array<{ label: string; value: number }> }
+  | { kind: "line"; title: string; description: string; unit: string; years: string[]; series: Array<{ label: string; values: number[] }> }
+  | { kind: "pie"; title: string; description: string; pies: Array<{ label: string; slices: Array<{ label: string; value: number }> }> }
+  | { kind: "process"; title: string; description: string; steps: string[] }
+  | { kind: "map"; title: string; description: string; before: string[]; after: string[] };
+
+function hashPrompt(text: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash);
+}
+
+function generatedValue(seed: number, index: number, min: number, max: number) {
+  const span = max - min + 1;
+  return min + ((seed + index * 37 + Math.floor(index / 2) * 19) % span);
+}
+
+function detectTask1VisualKind(prompt: string): GeneratedTask1Visual["kind"] | null {
+  const lower = prompt.toLowerCase();
+  if (lower.includes("write a letter")) return null;
+  if (lower.includes("map") || lower.includes("maps")) return "map";
+  if (lower.includes("process") || lower.includes("diagram") || lower.includes("steps involved")) return "process";
+  if (lower.includes("table")) return "table";
+  if (lower.includes("line chart") || lower.includes("line graph")) return "line";
+  if (lower.includes("pie chart")) return "pie";
+  if (lower.includes("bar chart") || lower.includes("chart") || lower.includes("graph")) return "bar";
+  return null;
+}
+
+function buildGeneratedTask1Visual(prompt: string): GeneratedTask1Visual | null {
+  const kind = detectTask1VisualKind(prompt);
+  if (!kind) return null;
+
+  const seed = hashPrompt(prompt);
+  const lower = prompt.toLowerCase();
+  const title = prompt.split(".")[0]?.replace(/^the\s+/i, "The ") || "Task 1 visual";
+
+  if (kind === "table") {
+    const ageHeaders = ["15-24", "25-34", "35-44", "45-54", "55+"];
+    const defaultHeaders = ["2015", "2017", "2019", "2021", "2022"];
+    const headers = lower.includes("age") ? ageHeaders : defaultHeaders;
+    const rows = lower.includes("six countries")
+      ? ["Japan", "Germany", "Brazil", "Mexico", "Egypt", "India"]
+      : ["Country A", "Country B", "Country C", "Country D", "Country E", "Country F"];
+    const tableRows = rows.map((label, rowIndex) => ({
+      label,
+      values: headers.map((_, colIndex) => {
+        const base = lower.includes("literacy") ? 68 + rowIndex * 4 : 20 + rowIndex * 7;
+        return Math.min(99, base + generatedValue(seed, rowIndex + colIndex, 0, 12) - colIndex * 2);
+      }),
+    }));
+    const description = [
+      `${title}.`,
+      `Unit: percentages.`,
+      `Columns: ${headers.join(", ")}.`,
+      ...tableRows.map((row) => `${row.label}: ${row.values.join(", ")}.`),
+    ].join("\n");
+    return { kind, title, headers, rows: tableRows, description };
+  }
+
+  if (kind === "line") {
+    const years = ["2000", "2005", "2010", "2015", "2020", "2022"];
+    const series = ["New York", "Tokyo", "London"].map((label, seriesIndex) => ({
+      label,
+      values: years.map((_, yearIndex) => generatedValue(seed, seriesIndex * 10 + yearIndex, 18 + seriesIndex * 6, 62 + seriesIndex * 8)),
+    }));
+    const description = [
+      `${title}.`,
+      `Unit: index values.`,
+      `Years: ${years.join(", ")}.`,
+      ...series.map((item) => `${item.label}: ${item.values.join(", ")}.`),
+    ].join("\n");
+    return { kind, title, unit: "index", years, series, description };
+  }
+
+  if (kind === "pie") {
+    const labels = lower.includes("energy")
+      ? ["Coal", "Natural gas", "Nuclear", "Renewables", "Oil"]
+      : ["Category A", "Category B", "Category C", "Category D", "Other"];
+    const makeSlices = (offset: number) => {
+      const raw = labels.map((label, index) => ({ label, value: generatedValue(seed, offset + index, 8, 34) }));
+      const total = raw.reduce((sum, item) => sum + item.value, 0);
+      let remaining = 100;
+      return raw.map((item, index) => {
+        const value = index === raw.length - 1 ? remaining : Math.max(5, Math.round((item.value / total) * 100));
+        remaining -= value;
+        return { ...item, value: Math.max(0, value) };
+      });
+    };
+    const pies = [
+      { label: "2000", slices: makeSlices(0) },
+      { label: "2020", slices: makeSlices(20) },
+    ];
+    const description = [
+      `${title}.`,
+      ...pies.map((pie) => `${pie.label}: ${pie.slices.map((slice) => `${slice.label} ${slice.value}%`).join(", ")}.`),
+    ].join("\n");
+    return { kind, title, pies, description };
+  }
+
+  if (kind === "process") {
+    const steps = lower.includes("recycling")
+      ? ["Collection", "Sorting", "Cleaning", "Melting", "Moulding", "New product"]
+      : ["Raw materials", "Preparation", "Processing", "Quality check", "Packaging", "Distribution"];
+    return {
+      kind,
+      title,
+      steps,
+      description: `${title}.\nProcess stages: ${steps.join(" -> ")}.`,
+    };
+  }
+
+  if (kind === "map") {
+    const before = ["Small harbour", "Residential area", "Farmland", "Local road", "Village centre"];
+    const after = ["Marina", "Apartments", "Shopping area", "Main road", "Tourist facilities"];
+    return {
+      kind,
+      title,
+      before,
+      after,
+      description: `${title}.\nBefore: ${before.join(", ")}.\nAfter: ${after.join(", ")}.`,
+    };
+  }
+
+  const labels = lower.includes("countries")
+    ? ["USA", "Germany", "China", "Japan", "Brazil"]
+    : ["Category A", "Category B", "Category C", "Category D", "Category E"];
+  const bars = labels.map((label, index) => ({ label, value: generatedValue(seed, index, 18, 88) }));
+  const description = [
+    `${title}.`,
+    `Unit: percentages.`,
+    ...bars.map((bar) => `${bar.label}: ${bar.value}%.`),
+  ].join("\n");
+  return { kind: "bar", title, unit: "%", bars, description };
+}
+
+function taskPromptWithGeneratedVisual(task: WritingTask) {
+  if (task.task_type !== "task1" || task.image_url) return task.prompt_text;
+  const visual = buildGeneratedTask1Visual(task.prompt_text);
+  if (!visual) return task.prompt_text;
+  return `${task.prompt_text}\n\nVISUAL DATA SHOWN TO THE STUDENT:\n${visual.description}`;
+}
+
+function visiblePromptText(prompt: string, hasGeneratedVisual: boolean) {
+  if (!hasGeneratedVisual) return prompt;
+  return prompt
+    .replace(/^the\s+[^.]*?(?:chart|graph|table|diagram|map|process)[^.]*?\.\s*/i, "")
+    .trim();
+}
+
+function GeneratedTask1VisualCard({ visual }: { visual: GeneratedTask1Visual }) {
+  return (
+    <div className="mb-4 rounded-xl border border-[rgb(var(--border))] bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--muted-foreground))]">
+            Generated Task 1 visual
+          </div>
+          <h3 className="mt-1 text-sm font-semibold text-[rgb(var(--foreground))]">{visual.title}</h3>
+        </div>
+        <Badge variant="outline" className="shrink-0 capitalize">{visual.kind}</Badge>
+      </div>
+
+      {visual.kind === "table" && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[460px] border-collapse text-xs">
+            <thead>
+              <tr>
+                <th className="border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] px-2 py-2 text-left">Country</th>
+                {visual.headers.map((header) => (
+                  <th key={header} className="border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] px-2 py-2 text-right">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visual.rows.map((row) => (
+                <tr key={row.label}>
+                  <td className="border border-[rgb(var(--border))] px-2 py-2 font-medium">{row.label}</td>
+                  {row.values.map((value, index) => (
+                    <td key={`${row.label}-${index}`} className="border border-[rgb(var(--border))] px-2 py-2 text-right">{value}%</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {visual.kind === "bar" && (
+        <div className="space-y-2">
+          {visual.bars.map((bar) => (
+            <div key={bar.label} className="grid grid-cols-[72px_1fr_42px] items-center gap-2 text-xs">
+              <span className="truncate text-[rgb(var(--muted-foreground))]">{bar.label}</span>
+              <div className="h-6 rounded-md bg-[rgb(var(--surface-elevated))]">
+                <div className="h-full rounded-md bg-blue-500" style={{ width: `${bar.value}%` }} />
+              </div>
+              <span className="text-right font-mono">{bar.value}{visual.unit}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {visual.kind === "line" && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-6 gap-1 text-[10px] text-[rgb(var(--muted-foreground))]">
+            {visual.years.map((year) => <span key={year}>{year}</span>)}
+          </div>
+          {visual.series.map((series) => (
+            <div key={series.label}>
+              <div className="mb-1 text-xs font-medium">{series.label}</div>
+              <div className="flex h-24 items-end gap-1 rounded-lg bg-[rgb(var(--surface-elevated))] p-2">
+                {series.values.map((value, index) => (
+                  <div key={`${series.label}-${index}`} className="flex-1 rounded-t bg-violet-500" style={{ height: `${Math.max(10, value)}%` }} title={`${visual.years[index]}: ${value}`} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {visual.kind === "pie" && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {visual.pies.map((pie) => (
+            <div key={pie.label} className="rounded-lg bg-[rgb(var(--surface-elevated))] p-3">
+              <div className="mb-2 text-xs font-semibold">{pie.label}</div>
+              <div className="space-y-1">
+                {pie.slices.map((slice) => (
+                  <div key={slice.label} className="flex items-center justify-between gap-2 text-xs">
+                    <span>{slice.label}</span>
+                    <span className="font-mono">{slice.value}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {visual.kind === "process" && (
+        <div className="flex flex-wrap items-center gap-2">
+          {visual.steps.map((step, index) => (
+            <div key={step} className="flex items-center gap-2">
+              <span className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] px-3 py-2 text-xs font-medium">{step}</span>
+              {index < visual.steps.length - 1 && <ChevronRight className="h-4 w-4 text-[rgb(var(--muted-foreground))]" />}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {visual.kind === "map" && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[["Before", visual.before], ["After", visual.after]].map(([label, items]) => (
+            <div key={label as string} className="rounded-lg bg-[rgb(var(--surface-elevated))] p-3">
+              <div className="mb-2 text-xs font-semibold">{label as string}</div>
+              <ul className="space-y-1 text-xs">
+                {(items as string[]).map((item) => <li key={item}>• {item}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Fallback task (shown while loading or if no DB) ──────────────────────────
 
 const FALLBACK_TASK: WritingTask = {
@@ -85,7 +356,9 @@ Give reasons for your answer and include any relevant examples from your own kno
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function WritingTestPage() {
+function WritingTestPageContent() {
+  const searchParams = useSearchParams();
+  const selectedTaskId = searchParams.get("id");
   // ── Mode: "full" = both tasks, "single" = practice one task ──
   const [mode, setMode] = useState<"full" | "single">("single");
   const [activeTab, setActiveTab] = useState<"task1" | "task2">("task1");
@@ -160,14 +433,16 @@ export default function WritingTestPage() {
           setTask1(t1);
           if (t2) setTask2(t2);
         } else {
-          const next = await getNextWriting(sb, user.id, preferredTaskType ?? undefined);
+          const next = selectedTaskId
+            ? await getWritingTask(sb, selectedTaskId)
+            : await getNextWriting(sb, user.id, preferredTaskType ?? undefined);
           if (next) setTask(next);
         }
       } catch { /* use fallback */ }
       finally { setTaskLoading(false); }
     }
     loadTask();
-  }, [phase, mode, preferredTaskType]);
+  }, [phase, mode, preferredTaskType, selectedTaskId]);
 
   const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -218,7 +493,7 @@ export default function WritingTestPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           essay,
-          prompt: t.prompt_text,
+          prompt: taskPromptWithGeneratedVisual(t),
           taskType: t.task_type,
           contentId: t.id !== "fallback" ? t.id : null,
         }),
@@ -231,7 +506,7 @@ export default function WritingTestPage() {
         startDots(["Анализируем ответ.", "Анализируем ответ..", "Анализируем ответ...", "Оцениваем по критериям IELTS.", "Оцениваем по критериям IELTS..", "Генерируем фидбек..."]);
         const res = await submitOne(text, task);
         stopDots();
-        if (res.status === 429) { setShowPaywall(true); setPhase("write"); return; }
+        if (res.status === 403 || res.status === 429) { setShowPaywall(true); setPhase("write"); return; }
         if (!res.ok) throw new Error(`API error ${res.status}`);
         setFeedback(await res.json());
         setPhase("feedback");
@@ -244,7 +519,7 @@ export default function WritingTestPage() {
           startDots(["Оцениваем Task 1.", "Оцениваем Task 1..", "Оцениваем Task 1..."]);
           const res1 = await submitOne(text1, task1);
           stopDots();
-          if (res1.status === 429) { setShowPaywall(true); setPhase("write"); return; }
+          if (res1.status === 403 || res1.status === 429) { setShowPaywall(true); setPhase("write"); return; }
           if (res1.ok) {
             setFeedback1(await res1.json());
           }
@@ -253,7 +528,7 @@ export default function WritingTestPage() {
         startDots(["Оцениваем Task 2.", "Оцениваем Task 2..", "Оцениваем Task 2...", "Генерируем фидбек..."]);
         const res2 = await submitOne(text2, task2);
         stopDots();
-        if (res2.status === 429) {
+        if (res2.status === 403 || res2.status === 429) {
           setShowPaywall(true);
           if (!feedback1) { setPhase("write"); return; }
           setPhase("feedback");
@@ -280,7 +555,7 @@ export default function WritingTestPage() {
           </div>
           <h2 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-2">AI Writing Feedback</h2>
           <p className="text-[rgb(var(--muted-foreground))] mb-6 text-sm leading-relaxed">
-            Получи оценку по всем 4 критериям IELTS с конкретными улучшениями от Claude AI.
+            AI-разбор доступен только по подписке. Купите Pro, чтобы получить оценку по 4 критериям IELTS и конкретные улучшения.
           </p>
           <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-5 mb-6 text-left flex flex-col gap-3">
             {["Оценка по 4 критериям (TA, CC, LR, GRA)", "Конкретные улучшения с цитатами", "Безлимитные попытки", "История всех эссе"].map((f) => (
@@ -651,6 +926,10 @@ export default function WritingTestPage() {
   const headerLabel = mode === "full" ? "Writing Test" : `Writing ${taskTypeLabel}`;
   const promptText = activeTask?.prompt_text ?? "";
   const promptImage = activeTask?.image_url ?? null;
+  const generatedVisual = activeTask?.task_type === "task1" && !promptImage
+    ? buildGeneratedTask1Visual(promptText)
+    : null;
+  const promptTextToShow = visiblePromptText(promptText, Boolean(generatedVisual));
   const task1Unavailable = mode === "full" && !task1 && !taskLoading;
 
   // Word count color helpers for tab badges
@@ -779,9 +1058,12 @@ export default function WritingTestPage() {
                   className="w-full rounded-lg border border-[rgb(var(--border))] mb-4 bg-white"
                 />
               )}
-              <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-line">
-                {promptText}
-              </p>
+              {generatedVisual && <GeneratedTask1VisualCard visual={generatedVisual} />}
+              {promptTextToShow && (
+                <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed whitespace-pre-line">
+                  {promptTextToShow}
+                </p>
+              )}
             </>
           )}
         </div>
@@ -798,7 +1080,10 @@ export default function WritingTestPage() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={promptImage} alt="Task 1 chart" className="w-full rounded-lg border border-[rgb(var(--border))] my-2 bg-white" />
                 )}
-                <p className="text-xs text-[rgb(var(--foreground))] mt-2 leading-relaxed whitespace-pre-line">{promptText}</p>
+                {generatedVisual && <GeneratedTask1VisualCard visual={generatedVisual} />}
+                {promptTextToShow && (
+                  <p className="text-xs text-[rgb(var(--foreground))] mt-2 leading-relaxed whitespace-pre-line">{promptTextToShow}</p>
+                )}
               </details>
             )}
           </div>
@@ -842,5 +1127,19 @@ export default function WritingTestPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function WritingTestPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[rgb(var(--primary))]" />
+        </div>
+      }
+    >
+      <WritingTestPageContent />
+    </Suspense>
   );
 }

@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
 import { checkDailyLimit, incrementUsage } from "@/lib/supabase/queries";
+import { isProUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
 
 export const maxDuration = 30;
 
@@ -11,6 +12,10 @@ export async function POST() {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) {
       return new Response(JSON.stringify({ error: "unauthenticated" }), { status: 401 });
+    }
+
+    if (!(await isProUser(sb, user.id))) {
+      return subscriptionRequiredResponse();
     }
 
     // Rate-limit: study-plan generation calls GPT — must be gated like other AI features

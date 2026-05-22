@@ -97,9 +97,9 @@ const PLANS = [
     period: "",
     description: "Попробуй платформу",
     features: [
-      "1 Reading тест / день",
-      "1 Listening тест / день",
-      "1 Writing без AI / неделю",
+      "1 IELTS тест / день",
+      "Reading, Listening, Writing или Speaking",
+      "Каталог тестов и отметки прогресса",
       "График прогресса",
       "3 вопроса AI-Tutor",
     ],
@@ -457,8 +457,8 @@ export default async function LandingPage({
                   Начни бесплатно.
                 </h2>
                 <p className="text-base md:text-lg text-[rgb(var(--muted-foreground))] leading-relaxed mb-8">
-                  По одному бесплатному тесту каждого типа в день, AI-фидбек по
-                  writing и speaking, и 15-минутная диагностика без регистрации.
+                  Один бесплатный тест в день, 15-минутная диагностика без регистрации,
+                  а AI-разборы и прогресс открываются в Pro.
                   Никаких скрытых платежей.
                 </p>
                 <Link
@@ -515,7 +515,7 @@ export default async function LandingPage({
                 <FreeOfferCard
                   icon={Star}
                   title="AI Tutor"
-                  subtitle="3 бесплатных вопроса"
+                  subtitle="Доступен в Pro"
                   iconBg="bg-gradient-to-br from-teal-50 to-teal-100"
                   iconColor="text-teal-600"
                   iconRing="ring-teal-200/60"

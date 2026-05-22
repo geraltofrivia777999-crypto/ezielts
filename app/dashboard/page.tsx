@@ -28,10 +28,10 @@ function daysUntil(dateStr: string | null): number | null {
 }
 
 const SKILL_META = [
-  { key: "reading",   label: "Reading",   icon: BookOpen,   color: "text-blue-500",   bg: "bg-blue-50",   href: "/tests/reading" },
-  { key: "listening", label: "Listening", icon: Headphones, color: "text-purple-500", bg: "bg-purple-50", href: "/tests/listening" },
-  { key: "writing",   label: "Writing",   icon: PenLine,    color: "text-teal-500",   bg: "bg-teal-50",   href: "/tests/writing" },
-  { key: "speaking",  label: "Speaking",  icon: Mic2,       color: "text-violet-500", bg: "bg-violet-50", href: "/tests/speaking" },
+  { key: "reading",   label: "Reading",   icon: BookOpen,   color: "text-blue-500",   bg: "bg-blue-50",   href: "/tests?skill=reading" },
+  { key: "listening", label: "Listening", icon: Headphones, color: "text-purple-500", bg: "bg-purple-50", href: "/tests?skill=listening" },
+  { key: "writing",   label: "Writing",   icon: PenLine,    color: "text-teal-500",   bg: "bg-teal-50",   href: "/tests?skill=writing" },
+  { key: "speaking",  label: "Speaking",  icon: Mic2,       color: "text-violet-500", bg: "bg-violet-50", href: "/tests?skill=speaking" },
 ];
 
 export default function DashboardPage() {
@@ -113,7 +113,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <div className="font-semibold text-[rgb(var(--foreground))]">Бесплатный план активен</div>
-                <div className="text-xs text-[rgb(var(--muted-foreground))]">1 Reading + 1 Listening в день · Writing/Speaking требуют Pro</div>
+                <div className="text-xs text-[rgb(var(--muted-foreground))]">1 тест в день на Free · Pro открывает все тесты без лимита</div>
               </div>
             </div>
             <Button asChild className="self-stretch sm:self-auto">

@@ -9,6 +9,8 @@ import {
   Mic2,
   Loader2,
   BarChart3,
+  Crown,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -54,6 +56,82 @@ const PERIODS: { id: TimePeriod; label: string; days: number | null }[] = [
   { id: "6months", label: "6 мес", days: 180 },
   { id: "all", label: "Всё время", days: null },
 ];
+
+function ProgressPaywall() {
+  return (
+    <AppShell title="Статистика">
+      <div className="relative mx-auto max-w-6xl">
+        <div className="pointer-events-none select-none blur-[5px] opacity-50">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="h-8 w-40 rounded-lg bg-[rgb(var(--surface-elevated))]" />
+                <div className="mt-2 h-4 w-72 rounded bg-[rgb(var(--surface-elevated))]" />
+              </div>
+              <div className="h-10 w-72 rounded-xl bg-[rgb(var(--surface))] border border-[rgb(var(--border))]" />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-4">
+              {["Reading", "Listening", "Writing", "Speaking"].map((skill, index) => (
+                <div key={skill} className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="h-5 w-24 rounded bg-[rgb(var(--surface-elevated))]" />
+                    <div className="h-8 w-8 rounded-xl bg-[rgb(var(--surface-elevated))]" />
+                  </div>
+                  <div className="font-mono text-4xl font-bold">{(5.5 + index * 0.5).toFixed(1)}</div>
+                  <div className="mt-4 h-2 rounded-full bg-[rgb(var(--surface-elevated))]" />
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1.4fr_0.8fr]">
+              <div className="h-80 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6">
+                <div className="mb-6 h-5 w-36 rounded bg-[rgb(var(--surface-elevated))]" />
+                <div className="flex h-56 items-end gap-3">
+                  {[40, 58, 52, 70, 66, 78, 84, 74, 88, 92].map((height, index) => (
+                    <div key={index} className="flex-1 rounded-t-lg bg-[rgb(var(--primary)/0.35)]" style={{ height: `${height}%` }} />
+                  ))}
+                </div>
+              </div>
+              <div className="h-80 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6">
+                <div className="mb-6 h-5 w-32 rounded bg-[rgb(var(--surface-elevated))]" />
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: 28 }).map((_, index) => (
+                    <div key={index} className="aspect-square rounded-md bg-[rgb(var(--success)/0.35)]" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute inset-0 flex items-start justify-center px-4 pt-20 sm:items-center sm:pt-0">
+          <div className="w-full max-w-lg rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 text-center shadow-xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[rgb(var(--primary)/0.1)] text-[rgb(var(--primary))]">
+              <Lock className="h-7 w-7" />
+            </div>
+            <h1 className="text-2xl font-bold text-[rgb(var(--foreground))]">Прогресс доступен по подписке</h1>
+            <p className="mt-2 text-sm leading-6 text-[rgb(var(--muted-foreground))]">
+              На бесплатном тарифе статистика скрыта. Купите Pro, чтобы видеть графики, историю попыток,
+              слабые места и динамику по каждому навыку.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button asChild className="flex-1">
+                <Link href="/pricing">
+                  <Crown className="h-4 w-4" />
+                  Купить подписку
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="flex-1">
+                <Link href="/tests">К тестам</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
 
 function filterByPeriod<T extends { completed_at?: string; attempt_date?: string }>(items: T[], period: TimePeriod): T[] {
   const p = PERIODS.find((pp) => pp.id === period);
@@ -193,6 +271,8 @@ export default function ProgressPage() {
 
   const streak = summary?.streak ?? 0;
   const targetBand = summary?.target_band ?? 7.0;
+  const isPro = Boolean(summary?.is_pro)
+    || (summary?.plan !== undefined && summary.plan !== "free" && summary?.subscription_status === "active");
 
   if (loading) {
     return (
@@ -202,6 +282,10 @@ export default function ProgressPage() {
         </div>
       </AppShell>
     );
+  }
+
+  if (!isPro) {
+    return <ProgressPaywall />;
   }
 
   const hasAnyData = allAttempts.length > 0;
@@ -221,7 +305,7 @@ export default function ProgressPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
             <Button asChild className="flex-1">
-              <Link href="/tests/reading">Начать Reading</Link>
+              <Link href="/tests?skill=reading">Начать Reading</Link>
             </Button>
             <Button variant="outline" asChild className="flex-1">
               <Link href="/diagnostic">Пройти диагностику</Link>

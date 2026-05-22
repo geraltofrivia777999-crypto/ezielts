@@ -206,7 +206,7 @@ export default async function SkillPage({ params }: { params: Promise<{ slug: st
                 <ChevronRight className="w-5 h-5" />
               </Link>
               <Link
-                href={`/tests/${slug}`}
+                href={`/tests?skill=${slug}`}
                 className="inline-flex items-center justify-center gap-2 bg-white hover:bg-[rgb(var(--muted)/0.05)] border border-[rgb(var(--border))] text-[rgb(var(--foreground))] font-semibold px-7 py-4 rounded-xl transition-colors"
               >
                 Открыть тест

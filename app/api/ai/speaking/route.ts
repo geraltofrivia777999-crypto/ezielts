@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
 import { checkDailyLimit, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { isProUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
 import { clampBand } from "@/lib/utils";
 import { SPEAKING_MIN_AUDIO_BYTES, SPEAKING_MIN_TRANSCRIPT_WORDS } from "@/lib/api-constants";
 
@@ -23,11 +24,22 @@ export async function POST(req: Request) {
     const sb = await createClient();
     const { data: { user } } = await sb.auth.getUser();
 
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "unauthenticated", message: "Войдите в аккаунт, чтобы получить AI Speaking оценку." }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!(await isProUser(sb, user.id))) {
+      return subscriptionRequiredResponse();
+    }
+
     if (user) {
       const allowed = await checkDailyLimit(sb, user.id, "speaking");
       if (!allowed) {
         return new Response(
-          JSON.stringify({ error: "limit_reached", message: "Лимит использования достигнут. Обновитесь до Pro." }),
+          JSON.stringify({ error: "limit_reached", message: "AI Speaking доступен только по подписке Pro." }),
           { status: 429, headers: { "Content-Type": "application/json" } }
         );
       }

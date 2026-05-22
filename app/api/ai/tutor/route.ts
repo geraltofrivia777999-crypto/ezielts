@@ -2,6 +2,7 @@ import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
 import { checkDailyLimit, incrementUsage, saveTutorMessage } from "@/lib/supabase/queries";
+import { isProUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
 
 export const maxDuration = 30;
 
@@ -131,12 +132,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!(await isProUser(sb, user.id))) {
+      return subscriptionRequiredResponse();
+    }
+
     const allowed = await checkDailyLimit(sb, user.id, "ai_tutor");
     if (!allowed) {
       return new Response(
         JSON.stringify({
           error: "limit_reached",
-          message: "Вы использовали все 3 бесплатных вопроса. Обновитесь до Pro для неограниченного доступа к AI-тьютору.",
+          message: "AI-тьютор доступен только по подписке Pro.",
         }),
         { status: 429, headers: { "Content-Type": "application/json" } }
       );

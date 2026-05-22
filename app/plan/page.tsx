@@ -77,7 +77,7 @@ function buildPlan(profile: Profile, isPro: boolean): Task[] {
       title: `${meta.label} — практика`,
       skill,
       duration: skill === "writing" || skill === "speaking" ? 40 : 25,
-      href: `/tests/${skill}`,
+      href: `/tests?skill=${skill}`,
     });
   }
 
@@ -167,13 +167,17 @@ export default function PlanPage() {
   }, []);
 
   async function generateAIPlan() {
+    if (!isPro) {
+      setAiError("AI-план доступен только по подписке. Купите Pro, чтобы открыть генерацию.");
+      return;
+    }
     setAiLoading(true);
     setAiError(null);
     try {
       const res = await fetch("/api/ai/study-plan", { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "API error");
+        throw new Error(data.message ?? data.error ?? "API error");
       }
       const data: AIPlan = await res.json();
       setAiPlan(data);
@@ -351,7 +355,15 @@ export default function PlanPage() {
                     {aiError}
                   </div>
                 )}
-                {!aiPlan && (
+                {!aiPlan && !isPro && (
+                  <Button asChild size="sm">
+                    <Link href="/pricing">
+                      <Lock className="w-4 h-4 mr-2" />
+                      Купить подписку
+                    </Link>
+                  </Button>
+                )}
+                {!aiPlan && isPro && (
                   <Button onClick={generateAIPlan} disabled={aiLoading} size="sm">
                     {aiLoading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Генерируем...</> : <><Sparkles className="w-4 h-4 mr-2" />Сгенерировать план</>}
                   </Button>

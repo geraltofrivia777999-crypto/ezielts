@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { Suspense, useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -30,7 +31,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getNextListening, saveAttempt } from "@/lib/supabase/queries";
+import { checkDailyLimit, getListeningTest, getNextListening, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
 import { ErrorAnalysis } from "@/components/error-analysis";
 import {
   mapDbToListeningTest,
@@ -1754,7 +1755,9 @@ function QuestionItem({
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function ListeningTestPage() {
+function ListeningTestPageContent() {
+  const searchParams = useSearchParams();
+  const selectedTestId = searchParams.get("id");
   const [test, setTest] = useState<ListeningTest | null>(null);
   const [loading, setLoading] = useState(true);
   const [answers, setAnswers] = useState<Record<string, number | string>>({});
@@ -1769,6 +1772,7 @@ export default function ListeningTestPage() {
   // CHILL  = training mode (full control over the audio).
   // Default to strict — that's the value of an IELTS prep platform.
   const [mode, setMode] = useState<ListeningMode>("strict");
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const userIdRef = useRef<string | null>(null);
 
   // ── Load ──
@@ -1781,7 +1785,9 @@ export default function ListeningTestPage() {
         if (cancelled) return;
         if (user) userIdRef.current = user.id;
 
-        let raw = user ? await getNextListening(sb, user.id) : null;
+        let raw = selectedTestId
+          ? await getListeningTest(sb, selectedTestId)
+          : user ? await getNextListening(sb, user.id) : null;
         if (!raw) {
           // Direct fallback query: any listening test with audio
           /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1814,7 +1820,7 @@ export default function ListeningTestPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedTestId]);
 
   // ── Derived ──
   const fullTestQuestions = useMemo<ListeningQuestion[]>(
@@ -1864,6 +1870,7 @@ export default function ListeningTestPage() {
     setRevealedAnswers(new Set());
     setAiStates({});
     setSubmitted(false);
+    setLimitNotice(null);
     setAudioStarted(false);
     setAudioEnded(false);
     setCurrentTime(0);
@@ -1978,6 +1985,11 @@ export default function ListeningTestPage() {
     if (userIdRef.current && test.id !== "fallback") {
       try {
         const sb = createClient();
+        const allowed = await checkDailyLimit(sb, userIdRef.current, "listening");
+        if (!allowed) {
+          setLimitNotice("Бесплатный лимит на сегодня уже использован. Результат показан, но попытка не сохранена.");
+          return;
+        }
         const sc = allQuestions.filter((q) => {
           const v = answers[q.id];
           if (q.kind === "mcq") return typeof v === "number" && v === q.answer;
@@ -1996,6 +2008,7 @@ export default function ListeningTestPage() {
           ai_feedback: null,
           completed_at: new Date().toISOString(),
         });
+        await incrementUsage(sb, userIdRef.current, "listening");
       } catch { /* non-fatal */ }
     }
   }, [test, answers, allQuestions, totalQ, currentTime]);
@@ -2056,6 +2069,11 @@ export default function ListeningTestPage() {
             <p className="text-[rgb(var(--muted-foreground))] text-sm">
               Верных: <strong className="text-[rgb(var(--foreground))]">{score} из {totalQ}</strong>
             </p>
+            {limitNotice && (
+              <div className="mt-1 rounded-xl border border-[rgb(var(--warning)/0.25)] bg-[rgb(var(--warning)/0.08)] px-3 py-2 text-xs text-[rgb(var(--warning))]">
+                {limitNotice}
+              </div>
+            )}
             <Progress
               value={(score / totalQ) * 100}
               className="w-full max-w-xs h-2"
@@ -2156,9 +2174,6 @@ export default function ListeningTestPage() {
           <Button
             size="sm"
             className="shrink-0"
-            // In chill mode users can submit whenever they want; in strict they
-            // must wait for the audio to finish (real-exam workflow).
-            disabled={mode === "strict" && !audioEnded}
             onClick={handleSubmit}
           >
             <Flag className="w-3.5 h-3.5" /><span className="hidden sm:inline ml-1">Сдать</span>
@@ -2302,17 +2317,22 @@ export default function ListeningTestPage() {
             <Button
               size="lg"
               className="w-full mt-6"
-              disabled={mode === "strict" && !audioEnded}
               onClick={handleSubmit}
             >
               <Flag className="w-4 h-4" />
-              {mode === "strict" && !audioEnded
-                ? "Дождитесь окончания аудио"
-                : `Сдать (${answeredCount}/${totalQ})`}
+              Сдать ({answeredCount}/{totalQ})
             </Button>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ListeningTestPage() {
+  return (
+    <Suspense fallback={<ListeningSkeleton />}>
+      <ListeningTestPageContent />
+    </Suspense>
   );
 }

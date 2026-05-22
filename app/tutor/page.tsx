@@ -43,9 +43,6 @@ const SUGGESTIONS = [
   { icon: Mic2, text: "Как звучать fluently в Speaking Part 2?" },
 ];
 
-// ─── Free limit (mock — real check is server-side) ────────────────────────────
-const FREE_LIMIT = 3;
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TutorPage() {
@@ -65,13 +62,13 @@ function TutorPageInner() {
       id: "welcome",
       role: "assistant",
       content:
-        "Привет! Я твой AI-тьютор по IELTS 👋\n\nМогу помочь с любым модулем: Reading, Writing, Listening или Speaking. Задай вопрос или выбери тему ниже.\n\n*У тебя 3 бесплатных вопроса. Pro — неограниченно.*",
+        "Привет! Я твой AI-тьютор по IELTS.\n\nМогу помочь с любым модулем: Reading, Writing, Listening или Speaking. AI-доступ открыт только для Pro-подписки.",
     },
   ]);
   const [input, setInput] = useState(initialQuestion);
   const [autoSent, setAutoSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [usedCount, setUsedCount] = useState(0);
+  const [isPro, setIsPro] = useState<boolean | null>(null);
   const [paywalled, setPaywalled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -87,6 +84,16 @@ function TutorPageInner() {
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
 
+      const { data: summary } = await (sb as any)
+        .from("v_user_summary")
+        .select("is_pro, plan, subscription_status")
+        .eq("id", user.id)
+        .single();
+      const pro = Boolean(summary?.is_pro)
+        || (summary?.plan && summary.plan !== "free" && summary.subscription_status === "active");
+      setIsPro(pro);
+      if (!pro) setPaywalled(true);
+
       const history = await getTutorMessages(sb, user.id, 50);
       if (history.length === 0) return;
 
@@ -99,8 +106,6 @@ function TutorPageInner() {
 
       // Replace welcome with full history (keep welcome as first)
       setMessages((prev) => [prev[0], ...loaded]);
-      // Count user messages for free limit
-      setUsedCount(loaded.filter((m) => m.role === "user").length);
     }
     loadHistory();
   }, []);
@@ -120,7 +125,7 @@ function TutorPageInner() {
 
   async function sendMessage(text: string) {
     if (!text.trim() || loading) return;
-    if (usedCount >= FREE_LIMIT) {
+    if (isPro === false) {
       setPaywalled(true);
       return;
     }
@@ -144,7 +149,7 @@ function TutorPageInner() {
         body: JSON.stringify({ messages: history }),
       });
 
-      if (res.status === 429) {
+      if (res.status === 403 || res.status === 429) {
         const data = await res.json();
         setMessages((prev) => prev.filter((m) => m.id !== "loading"));
         setMessages((prev) => [
@@ -186,7 +191,6 @@ function TutorPageInner() {
             : m
         )
       );
-      setUsedCount((c) => c + 1);
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== "loading"));
       setMessages((prev) => [
@@ -208,8 +212,6 @@ function TutorPageInner() {
     sendMessage(input);
   }
 
-  const remainingFree = Math.max(0, FREE_LIMIT - usedCount);
-
   return (
     <AppShell title="AI Тьютор">
       <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm overflow-hidden flex flex-col" style={{ minHeight: "calc(100vh - 8rem)" }}>
@@ -229,13 +231,13 @@ function TutorPageInner() {
           </p>
         </div>
 
-        {/* Free counter */}
-        {!paywalled && (
+        {/* Plan status */}
+        {isPro && (
           <div className="text-right shrink-0">
             <div className="text-xs font-medium text-[rgb(var(--foreground))]">
-              {remainingFree}/{FREE_LIMIT}
+              Pro
             </div>
-            <div className="text-xs text-[rgb(var(--muted-foreground))]">бесплатно</div>
+            <div className="text-xs text-[rgb(var(--muted-foreground))]">AI открыт</div>
           </div>
         )}
       </div>
@@ -294,15 +296,15 @@ function TutorPageInner() {
               <Lock className="w-5 h-5 text-[rgb(var(--primary))]" />
             </div>
             <p className="font-semibold text-[rgb(var(--foreground))] mb-1">
-              Бесплатные вопросы закончились
+              AI доступен только по подписке
             </p>
             <p className="text-sm text-[rgb(var(--muted-foreground))] mb-4">
-              Обновитесь до Pro — неограниченные вопросы к AI-тьютору + Writing/Speaking анализ
+              Купите Pro, чтобы открыть AI-тьютора, разборы Reading/Listening, AI Writing и Speaking Coach.
             </p>
             <Link href="/pricing">
               <Button size="sm" className="gap-2">
                 <Sparkles className="w-4 h-4" />
-                Открыть Pro — от $4/мес
+                Купить подписку
               </Button>
             </Link>
           </div>

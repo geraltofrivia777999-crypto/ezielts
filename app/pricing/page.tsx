@@ -60,7 +60,7 @@ const PLANS: Plan[] = [
     highlight: true,
     tag: "ПОПУЛЯРНЫЙ",
     features: [
-      "Безлимит Reading + Listening",
+      "Безлимит всех IELTS тестов",
       "AI Writing Feedback (4 критерия)",
       "AI Speaking Coach + транскрипт",
       "Персональный AI-план на 14 дней",
@@ -121,25 +121,25 @@ const PLANS: Plan[] = [
 const FEATURES = [
   {
     label: "Reading тесты",
-    free: "1 в день",
+    free: "1 тест/день",
     pro: "Безлимит",
     highlight: false,
   },
   {
     label: "Listening тесты",
-    free: "1 в день",
+    free: "1 тест/день",
     pro: "Безлимит",
     highlight: false,
   },
   {
     label: "Writing задания",
-    free: "1 в неделю (без AI)",
+    free: "1 тест/день без AI",
     pro: "Безлимит + AI Feedback",
     highlight: true,
   },
   {
     label: "Speaking тесты",
-    free: "1 в неделю (без AI)",
+    free: "1 тест/день без AI",
     pro: "Безлимит + AI Coach",
     highlight: true,
   },

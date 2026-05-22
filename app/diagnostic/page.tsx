@@ -477,7 +477,7 @@ export default function DiagnosticPage() {
               </Button>
             </div>
             <p className="text-xs text-center text-[rgb(var(--muted))] mt-4">
-              Бесплатный план включает 1 Reading + 1 Listening в день
+              Бесплатный план включает 1 тест в день
             </p>
           </div>
         </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react";
+import { Suspense, useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -22,7 +23,7 @@ import {
   Target,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getNextReading, saveAttempt } from "@/lib/supabase/queries";
+import { checkDailyLimit, getNextReading, getReadingTest, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
 import { ErrorAnalysis } from "@/components/error-analysis";
 import {
   mapDbToReadingTest,
@@ -603,7 +604,9 @@ function PassageText({ text }: { text: string }) {
 
 // ─── Reading Test page ──────────────────────────────────────────────────────
 
-export default function ReadingTestPage() {
+function ReadingTestPageContent() {
+  const searchParams = useSearchParams();
+  const selectedTestId = searchParams.get("id");
   const [test, setTest] = useState<ReadingTest | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPart, setCurrentPart] = useState(1); // 1, 2 or 3
@@ -614,6 +617,7 @@ export default function ReadingTestPage() {
   const [session, setSession] = useState<ReadingSession | null>(null);
   const [mode, setMode] = useState<ReadingMode>("exam");
   const [timeLeft, setTimeLeft] = useState(READING_TIME_LIMIT_SEC);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const userIdRef = useRef<string | null>(null);
 
   // ── Load test ──
@@ -626,7 +630,9 @@ export default function ReadingTestPage() {
         if (cancelled) return;
         if (user) userIdRef.current = user.id;
 
-        const raw = user ? await getNextReading(sb, user.id) : null;
+        const raw = selectedTestId
+          ? await getReadingTest(sb, selectedTestId)
+          : user ? await getNextReading(sb, user.id) : null;
         if (cancelled) return;
 
         if (raw) {
@@ -649,7 +655,7 @@ export default function ReadingTestPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedTestId]);
 
   // ── Derived data ──
   const activePassages = useMemo<ReadingPassage[]>(() => {
@@ -701,6 +707,11 @@ export default function ReadingTestPage() {
     if (userIdRef.current && test.id !== "fallback") {
       try {
         const sb = createClient();
+        const allowed = await checkDailyLimit(sb, userIdRef.current, "reading");
+        if (!allowed) {
+          setLimitNotice("Бесплатный лимит на сегодня уже использован. Результат показан, но попытка не сохранена.");
+          return;
+        }
         const correct = gradableQuestions(activeTest).filter((q) => isReadingAnswerCorrect(q, answers[q.id])).length;
         const total = gradableQuestions(activeTest).length;
         await saveAttempt(sb, {
@@ -715,6 +726,7 @@ export default function ReadingTestPage() {
           ai_feedback: null,
           completed_at: new Date().toISOString(),
         });
+        await incrementUsage(sb, userIdRef.current, "reading");
       } catch { /* non-fatal */ }
     }
   }, [test, activeTest, answers, mode, activeTimeLimit, timeLeft]);
@@ -746,6 +758,7 @@ export default function ReadingTestPage() {
     setRevealedAnswers(new Set());
     setAiStates({});
     setSubmitted(false);
+    setLimitNotice(null);
     setTimeLeft(nextSession.kind === "passage" ? 20 * 60 : READING_TIME_LIMIT_SEC);
   }
 
@@ -906,6 +919,11 @@ export default function ReadingTestPage() {
             <p className="text-[rgb(var(--muted-foreground))] text-sm">
               Верных ответов: <strong className="text-[rgb(var(--foreground))]">{score} из {gradableCount}</strong>
             </p>
+            {limitNotice && (
+              <div className="mt-1 rounded-xl border border-[rgb(var(--warning)/0.25)] bg-[rgb(var(--warning)/0.08)] px-3 py-2 text-xs text-[rgb(var(--warning))]">
+                {limitNotice}
+              </div>
+            )}
             <Progress
               value={(score / gradableCount) * 100}
               className="w-full max-w-xs h-2"
@@ -965,6 +983,9 @@ export default function ReadingTestPage() {
   // ── Render: active test ──
   const passage: ReadingPassage =
     activePassages.find((p) => p.partNumber === currentPart) ?? activePassages[0];
+  const firstActivePart = Math.min(...activePassages.map((p) => p.partNumber));
+  const lastActivePart = Math.max(...activePassages.map((p) => p.partNumber));
+  const canSubmitReading = session.kind === "passage" || currentPart === lastActivePart;
   const lowTime = mode === "exam" && timeLeft < 5 * 60;
 
   return (
@@ -1011,10 +1032,12 @@ export default function ReadingTestPage() {
             {mode === "exam" ? formatTime(timeLeft) : "Practice"}
           </div>
 
-          <Button size="sm" className="shrink-0" onClick={handleSubmit}>
-            <Flag className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Сдать</span>
-          </Button>
+          {canSubmitReading && (
+            <Button size="sm" className="shrink-0" onClick={handleSubmit}>
+              <Flag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Сдать</span>
+            </Button>
+          )}
         </div>
 
         {/* Passage tabs (Part 1 / 2 / 3) */}
@@ -1114,7 +1137,7 @@ export default function ReadingTestPage() {
 
             {/* Cross-passage navigation */}
             <div className="flex gap-2 pt-2">
-              {session.kind === "full" && currentPart > Math.min(...activePassages.map((p) => p.partNumber)) && (
+              {session.kind === "full" && currentPart > firstActivePart && (
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -1123,7 +1146,7 @@ export default function ReadingTestPage() {
                   ← Passage {currentPart - 1}
                 </Button>
               )}
-              {session.kind === "full" && currentPart < Math.max(...activePassages.map((p) => p.partNumber)) && (
+              {session.kind === "full" && currentPart < lastActivePart && (
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -1134,18 +1157,30 @@ export default function ReadingTestPage() {
               )}
             </div>
 
-            <Button size="lg" className="w-full" onClick={handleSubmit}>
-              <Flag className="w-4 h-4" />
-              Сдать тест ({answered}/{totalQ} отвечено)
-            </Button>
-            {mode === "exam" && answered < totalQ && (
-              <p className="text-xs text-center text-[rgb(var(--muted-foreground))]">
-                Можно сдать в любой момент — таймер автоматически завершит тест на 0:00.
-              </p>
+            {canSubmitReading && (
+              <>
+                <Button size="lg" className="w-full" onClick={handleSubmit}>
+                  <Flag className="w-4 h-4" />
+                  Сдать тест ({answered}/{totalQ} отвечено)
+                </Button>
+                {mode === "exam" && answered < totalQ && (
+                  <p className="text-xs text-center text-[rgb(var(--muted-foreground))]">
+                    Сдать тест можно на последнем passage — таймер автоматически завершит тест на 0:00.
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ReadingTestPage() {
+  return (
+    <Suspense fallback={<ReadingSkeleton />}>
+      <ReadingTestPageContent />
+    </Suspense>
   );
 }

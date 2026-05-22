@@ -206,7 +206,7 @@ export function OverviewTab({ summary, skills, bandHistory, attempts, activity, 
           return (
             <Link
               key={sk.key}
-              href={`/tests/${sk.key}`}
+              href={`/tests?skill=${sk.key}`}
               className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-5 hover:border-[rgb(var(--primary)/0.3)] transition-colors group"
             >
               <div className="flex items-start justify-between mb-3">

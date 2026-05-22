@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
 import { checkDailyLimit, incrementUsage } from "@/lib/supabase/queries";
+import { isProUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
 
 export const maxDuration = 30;
 
@@ -42,12 +43,16 @@ export async function POST(req: Request) {
       return Response.json({ error: "unauthenticated" }, { status: 401 });
     }
 
+    if (!(await isProUser(sb, user.id))) {
+      return subscriptionRequiredResponse();
+    }
+
     const allowed = await checkDailyLimit(sb, user.id, "ai_tutor");
     if (!allowed) {
       return Response.json(
         {
           error: "limit_reached",
-          message: "Лимит AI-тьютора исчерпан. Обновитесь до Pro или попробуйте позже.",
+          message: "AI-разбор доступен только по подписке Pro.",
         },
         { status: 429 }
       );

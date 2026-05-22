@@ -6,10 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   Home,
   BarChart3,
-  PenLine,
-  Mic2,
-  Headphones,
-  BookOpen,
+  ClipboardList,
   Star,
   GraduationCap,
   DollarSign,
@@ -21,11 +18,8 @@ import {
 
 const NAV = [
   { href: "/dashboard", icon: Home,        label: "Главная" },
+  { href: "/tests",     icon: ClipboardList, label: "Тесты" },
   { href: "/progress",  icon: BarChart3,   label: "Прогресс" },
-  { href: "/tests/writing",   icon: PenLine,    label: "Writing" },
-  { href: "/tests/speaking",  icon: Mic2,       label: "Speaking" },
-  { href: "/tests/listening", icon: Headphones, label: "Listening" },
-  { href: "/tests/reading",   icon: BookOpen,   label: "Reading" },
   { href: "/plan",      icon: Star,        label: "AI план" },
   { href: "/tutor",     icon: Sparkles,    label: "AI тьютор" },
   { href: "/live",       icon: GraduationCap, label: "Живое Обучение" },
