@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   ChevronDown,
   MessageCircle,
   ChevronRight,
+  Eye,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getNextWriting, getWritingTask } from "@/lib/supabase/queries";
@@ -44,7 +45,7 @@ interface WritingFeedback {
   };
   summary: string;
   strengths: string[];
-  improvements: Array<{ issue: string; example: string; suggestion: string }>;
+  improvements: Array<{ issue: string; example: string; suggestion: string; category?: string; correction?: string }>;
   corrected_intro?: string;
 }
 
@@ -63,6 +64,105 @@ function CriteriaBar({ band, label }: { band: number; label: string }) {
       <span className={cn("text-sm font-mono font-bold w-8 text-right", textColor)}>{band.toFixed(1)}</span>
     </div>
   );
+}
+
+type FeedbackCategoryId = "task" | "coherence" | "vocabulary" | "grammar";
+
+const FEEDBACK_CATEGORIES: Array<{ id: FeedbackCategoryId; label: string; shortLabel: string }> = [
+  { id: "task", label: "Task Achievement", shortLabel: "Task" },
+  { id: "coherence", label: "Coherence", shortLabel: "Logic" },
+  { id: "vocabulary", label: "Vocabulary", shortLabel: "Words" },
+  { id: "grammar", label: "Grammar", shortLabel: "Grammar" },
+];
+
+function cleanFeedbackText(text: string | null | undefined) {
+  return (text ?? "")
+    .replace(/[“”"]/g, "")
+    .replace(/^example:\s*/i, "")
+    .trim();
+}
+
+function classifyImprovement(imp: WritingFeedback["improvements"][number]): FeedbackCategoryId {
+  const text = `${imp.category ?? ""} ${imp.issue ?? ""} ${imp.suggestion ?? ""}`.toLowerCase();
+  if (/(grammar|grammatical|punctuation|comma|article|tense|syntax|preposition|plural|verb|sentence|clause|граммат|пунктуац|запят|артик)/.test(text)) {
+    return "grammar";
+  }
+  if (/(vocab|lexical|word choice|collocation|phrase|synonym|repetition|word|лекс|словар)/.test(text)) {
+    return "vocabulary";
+  }
+  if (/(coherence|cohesion|linking|paragraph|structure|flow|logical|transition|связ|логик|структур)/.test(text)) {
+    return "coherence";
+  }
+  return "task";
+}
+
+function feedbackCategoryCounts(improvements: WritingFeedback["improvements"]) {
+  return improvements.reduce<Record<FeedbackCategoryId, number>>((acc, imp) => {
+    acc[classifyImprovement(imp)] += 1;
+    return acc;
+  }, { task: 0, coherence: 0, vocabulary: 0, grammar: 0 });
+}
+
+function criterionForFeedbackCategory(fb: WritingFeedback, category: FeedbackCategoryId) {
+  if (category === "task") return fb.criteria.task_achievement;
+  if (category === "coherence") return fb.criteria.coherence_cohesion;
+  if (category === "vocabulary") return fb.criteria.lexical_resource;
+  return fb.criteria.grammatical_range;
+}
+
+function suggestionAsCorrection(imp: WritingFeedback["improvements"][number]) {
+  const correction = cleanFeedbackText(imp.correction);
+  if (correction) return correction;
+  return cleanFeedbackText(imp.suggestion);
+}
+
+function HighlightedEssay({
+  essayText,
+  improvements,
+}: {
+  essayText: string;
+  improvements: WritingFeedback["improvements"];
+}) {
+  const ranges = improvements
+    .map((imp, index) => {
+      const example = cleanFeedbackText(imp.example);
+      if (example.length < 4) return null;
+      const start = essayText.toLowerCase().indexOf(example.toLowerCase());
+      if (start === -1) return null;
+      return { start, end: start + example.length, index };
+    })
+    .filter((range): range is { start: number; end: number; index: number } => Boolean(range))
+    .sort((a, b) => a.start - b.start)
+    .reduce<Array<{ start: number; end: number; index: number }>>((acc, range) => {
+      const prev = acc[acc.length - 1];
+      if (prev && range.start < prev.end) return acc;
+      acc.push(range);
+      return acc;
+    }, []);
+
+  if (ranges.length === 0) {
+    return <p className="whitespace-pre-wrap leading-relaxed">{essayText}</p>;
+  }
+
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  ranges.forEach((range) => {
+    if (range.start > cursor) {
+      parts.push(essayText.slice(cursor, range.start));
+    }
+    parts.push(
+      <mark key={`${range.start}-${range.end}`} className="rounded-sm bg-rose-100 px-1 text-[rgb(var(--foreground))]">
+        {essayText.slice(range.start, range.end)}
+        <sup className="ml-0.5 text-xs font-bold text-rose-600">{range.index + 1}</sup>
+      </mark>,
+    );
+    cursor = range.end;
+  });
+  if (cursor < essayText.length) {
+    parts.push(essayText.slice(cursor));
+  }
+
+  return <p className="whitespace-pre-wrap leading-relaxed">{parts}</p>;
 }
 
 type GeneratedTask1Visual =
@@ -386,6 +486,8 @@ function WritingTestPageContent() {
   const WRITING_TOTAL_SECONDS = 60 * 60;
   const [timeLeft, setTimeLeft] = useState(WRITING_TOTAL_SECONDS);
   const [showSample, setShowSample] = useState(false);
+  const [feedbackView, setFeedbackView] = useState<"original" | "feedback">("feedback");
+  const [feedbackCategory, setFeedbackCategory] = useState<FeedbackCategoryId>("grammar");
   const autoSubmittedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const loadingRef = useRef<NodeJS.Timeout | null>(null);
@@ -445,22 +547,6 @@ function WritingTestPageContent() {
   }, [phase, mode, preferredTaskType, selectedTaskId]);
 
   const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-
-  // ── Countdown timer with auto-submit at 0 ──
-  useEffect(() => {
-    if (phase !== "write") return;
-    if (timeLeft <= 0) {
-      const canAutoSubmit = mode === "full" ? canSubmitFull : !isUnderMin;
-      if (!autoSubmittedRef.current && canAutoSubmit) {
-        autoSubmittedRef.current = true;
-        handleSubmit();
-      }
-      return;
-    }
-    timerRef.current = setInterval(() => setTimeLeft((t) => Math.max(0, t - 1)), 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, timeLeft]);
 
   const lowTime = timeLeft < 5 * 60;
   const outOfTime = timeLeft === 0;
@@ -545,6 +631,22 @@ function WritingTestPageContent() {
     }
   }
 
+  // ── Countdown timer with auto-submit at 0 ──
+  useEffect(() => {
+    if (phase !== "write") return;
+    if (timeLeft <= 0) {
+      const canAutoSubmit = mode === "full" ? canSubmitFull : !isUnderMin;
+      if (!autoSubmittedRef.current && canAutoSubmit) {
+        autoSubmittedRef.current = true;
+        handleSubmit();
+      }
+      return;
+    }
+    timerRef.current = setInterval(() => setTimeLeft((t) => Math.max(0, t - 1)), 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, timeLeft]);
+
   // ── Paywall overlay ──
   if (showPaywall) {
     return (
@@ -587,6 +689,12 @@ function WritingTestPageContent() {
       { name: "Lexical Resource", code: "LR", ...fb.criteria.lexical_resource },
       { name: "Grammatical Range & Accuracy", code: "GRA", ...fb.criteria.grammatical_range },
     ];
+    const categoryCounts = feedbackCategoryCounts(fb.improvements);
+    const firstCategoryWithFeedback = FEEDBACK_CATEGORIES.find((category) => categoryCounts[category.id] > 0)?.id ?? feedbackCategory;
+    const activeFeedbackCategory = categoryCounts[feedbackCategory] > 0 ? feedbackCategory : firstCategoryWithFeedback;
+    const activeCategory = FEEDBACK_CATEGORIES.find((category) => category.id === activeFeedbackCategory) ?? FEEDBACK_CATEGORIES[0];
+    const activeCriterion = criterionForFeedbackCategory(fb, activeFeedbackCategory);
+    const activeImprovements = fb.improvements.filter((imp) => classifyImprovement(imp) === activeFeedbackCategory);
 
     return (
       <>
@@ -647,48 +755,133 @@ function WritingTestPageContent() {
           })}
         </div>
 
-        {/* Improvements */}
-        <div className="bg-[rgb(var(--primary)/0.06)] border border-[rgb(var(--primary)/0.15)] rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="w-4 h-4 text-[rgb(var(--primary))]" />
-            <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Что улучшить</span>
-          </div>
-          <ol className="flex flex-col gap-4">
-            {fb.improvements.map((imp, i) => (
-              <li key={i} className="flex gap-3 text-sm">
-                <span className="shrink-0 w-5 h-5 rounded-full bg-[rgb(var(--primary)/0.15)] text-[rgb(var(--primary))] text-xs font-bold flex items-center justify-center mt-0.5">
-                  {i + 1}
-                </span>
-                <div>
-                  <p className="font-medium text-[rgb(var(--foreground))] mb-0.5">{imp.issue}</p>
-                  {imp.example && (
-                    <p className="text-[rgb(var(--muted-foreground))] italic text-xs mb-1">«{imp.example}»</p>
+        {/* Essay feedback */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-base font-semibold text-[rgb(var(--foreground))]">Ваш ответ</span>
+              <div className="inline-flex rounded-full border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackView("original")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+                    feedbackView === "original" ? "bg-[rgb(var(--surface))] text-[rgb(var(--foreground))] shadow-sm" : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
                   )}
-                  <p className="text-[rgb(var(--foreground))]">{imp.suggestion}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        {/* Corrected intro */}
-        {fb.corrected_intro && (
-          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <PenLine className="w-4 h-4 text-teal-500" />
-              <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Улучшенное вступление</span>
+                >
+                  <Eye className="h-4 w-4" />
+                  Original
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFeedbackView("feedback")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+                    feedbackView === "feedback" ? "bg-[rgb(var(--surface))] text-[rgb(var(--foreground))] shadow-sm" : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
+                  )}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Feedback
+                </button>
+              </div>
             </div>
-            <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed italic">{fb.corrected_intro}</p>
+            <span className="text-sm text-[rgb(var(--muted-foreground))]">{essayWordCount} слов</span>
           </div>
-        )}
 
-        {/* Your essay */}
-        <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Ваш ответ</span>
-            <span className="text-xs text-[rgb(var(--muted-foreground))]">{essayWordCount} слов</span>
+          {feedbackView === "feedback" && (
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[rgb(var(--surface-elevated))] p-1 sm:grid-cols-4">
+              {FEEDBACK_CATEGORIES.map((category) => {
+                const count = categoryCounts[category.id];
+                const active = activeFeedbackCategory === category.id;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => setFeedbackCategory(category.id)}
+                    className={cn(
+                      "flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors",
+                      active ? "bg-[rgb(var(--surface))] text-[rgb(var(--foreground))] shadow-sm" : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
+                    )}
+                  >
+                    <span>{category.label}</span>
+                    {count > 0 && (
+                      <span className={cn("rounded-full px-1.5 py-0.5 text-xs", active ? "bg-[rgb(var(--primary)/0.14)] text-[rgb(var(--primary))]" : "bg-[rgb(var(--border))] text-[rgb(var(--muted-foreground))]")}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className={cn("grid gap-5", feedbackView === "feedback" ? "lg:grid-cols-[1.1fr_0.9fr]" : "grid-cols-1")}>
+            <div className="min-h-[360px] rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 text-lg leading-8 text-[rgb(var(--foreground))] shadow-sm">
+              {feedbackView === "feedback" ? (
+                <HighlightedEssay essayText={essayText} improvements={activeImprovements.length > 0 ? activeImprovements : fb.improvements} />
+              ) : (
+                <p className="whitespace-pre-wrap leading-relaxed">{essayText}</p>
+              )}
+            </div>
+
+            {feedbackView === "feedback" && (
+              <div className="flex flex-col gap-4">
+                <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-4 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="font-semibold text-[rgb(var(--foreground))]">{activeCategory.label}</span>
+                    <Badge variant="secondary">Band {activeCriterion.band.toFixed(1)}</Badge>
+                  </div>
+                  <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">{activeCriterion.comment}</p>
+                </div>
+
+                {activeImprovements.length > 0 ? (
+                  activeImprovements.map((imp, i) => {
+                    const example = cleanFeedbackText(imp.example);
+                    const correction = suggestionAsCorrection(imp);
+                    return (
+                      <div key={`${activeFeedbackCategory}-${i}`} className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] p-5 shadow-sm">
+                        <div className="mb-4 flex items-start gap-3">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 text-sm font-bold text-rose-600">{i + 1}</span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[rgb(var(--foreground))]">{imp.issue}</p>
+                            {example && <p className="mt-1 text-sm italic text-[rgb(var(--muted-foreground))]">“{example}”</p>}
+                          </div>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                          {example ? (
+                            <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))] line-through decoration-2">{example}</p>
+                          ) : (
+                            <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">{imp.issue}</p>
+                          )}
+                          <ChevronRight className="hidden h-4 w-4 text-[rgb(var(--muted-foreground))] sm:block" />
+                          <p className="text-sm font-medium leading-relaxed text-emerald-700">{correction}</p>
+                        </div>
+                        <p className="mt-4 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">{imp.suggestion}</p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Badge variant="secondary">{activeCategory.shortLabel}</Badge>
+                          <Badge className="bg-rose-500 text-white hover:bg-rose-500">Fix this to score higher</Badge>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-5 text-sm text-[rgb(var(--muted-foreground))]">
+                    По этому критерию AI не нашёл отдельных правок. Ориентируйтесь на комментарий выше.
+                  </div>
+                )}
+
+                {fb.corrected_intro && activeFeedbackCategory === "task" && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                    <div className="mb-3 flex items-center gap-2">
+                      <PenLine className="h-4 w-4 text-emerald-600" />
+                      <span className="font-semibold text-sm text-[rgb(var(--foreground))]">Улучшенное вступление</span>
+                    </div>
+                    <p className="text-sm italic leading-relaxed text-[rgb(var(--foreground))]">{fb.corrected_intro}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed whitespace-pre-wrap">{essayText}</p>
         </div>
 
         {/* Sample answer (Band 8+) */}
@@ -751,7 +944,7 @@ function WritingTestPageContent() {
     return (
       <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
         <header className="sticky top-0 z-40 bg-[rgb(var(--surface))] border-b border-[rgb(var(--border))]">
-          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
+          <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
             <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
               <ChevronLeft className="w-4 h-4" />Dashboard
             </Link>
@@ -762,7 +955,7 @@ function WritingTestPageContent() {
           </div>
         </header>
 
-        <div className="max-w-3xl mx-auto w-full px-4 py-8 flex flex-col gap-6">
+        <div className="max-w-6xl mx-auto w-full px-4 py-8 flex flex-col gap-6">
           {/* Combined overall for full mode */}
           {mode === "full" && (
             <div className="flex flex-col items-center gap-3 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">

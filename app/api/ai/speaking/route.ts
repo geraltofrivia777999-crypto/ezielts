@@ -137,16 +137,27 @@ Return ONLY valid JSON in this exact schema:
   "pronunciation": <number 0-9>,
   "transcript": <full transcript text as string>,
   "summary": "<2-3 sentences in Russian: overall impression and main areas>",
+  "criteria_comments": {
+    "fluency_coherence": "<2 sentences in Russian with concrete reason for FC score>",
+    "lexical_resource": "<2 sentences in Russian with concrete reason for LR score>",
+    "grammatical_range": "<2 sentences in Russian with concrete reason for GRA score>",
+    "pronunciation": "<2 sentences in Russian with concrete reason for PR score>"
+  },
   "strengths": ["<Russian strength 1>", "<Russian strength 2>"],
   "improvements": [
-    { "issue": "<short Russian label>", "example": "<exact quote from transcript>", "suggestion": "<specific fix in Russian>" },
-    { "issue": "<short Russian label>", "example": "<exact quote from transcript>", "suggestion": "<specific fix in Russian>" }
+    { "category": "grammar", "issue": "<short Russian label>", "example": "<exact quote from transcript>", "correction": "<improved replacement in English>", "suggestion": "<specific explanation in Russian>", "severity": "major", "from_band": 4, "to_band": 6 },
+    { "category": "vocabulary", "issue": "<short Russian label>", "example": "<exact quote from transcript>", "correction": "<better IELTS phrase in English>", "suggestion": "<specific explanation in Russian>", "severity": "minor", "from_band": 5, "to_band": 7 },
+    { "category": "fluency", "issue": "<short Russian label>", "example": "<exact quote from transcript>", "correction": "<more fluent version in English>", "suggestion": "<specific explanation in Russian>", "severity": "major" },
+    { "category": "pronunciation", "issue": "<short Russian label>", "example": "<word or phrase from transcript>", "correction": "<IPA or pronunciation hint>", "suggestion": "<specific explanation in Russian>", "severity": "minor" }
   ],
   "model_phrases": ["<better English phrase 1>", "<better English phrase 2>", "<better English phrase 3>"]
 }
 
 Rules:
 - Be specific, cite exact words/phrases from the transcript
+- For every improvement, "example" must be copied exactly from the transcript when possible
+- "correction" must be a direct replacement or pronunciation hint, not a long explanation
+- Use category only from: fluency, vocabulary, grammar, pronunciation
 - Band scores must be multiples of 0.5
 - If transcript is very short (< 30 words), reflect that in lower fluency band
 - Pronunciation: infer from spelling patterns and word choice complexity`;

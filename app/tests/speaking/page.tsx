@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect, useCallback } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,13 @@ import {
   MessageCircle,
   Volume2,
   VolumeX,
+  Share2,
+  Gauge,
+  Timer,
+  Play,
+  Eye,
+  Info,
+  ArrowRight,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -41,7 +48,13 @@ interface SpeakingFeedback {
   transcript: string;
   summary: string;
   strengths: string[];
-  improvements: Array<{ issue: string; example: string; suggestion: string }>;
+  criteria_comments?: {
+    fluency_coherence?: string;
+    lexical_resource?: string;
+    grammatical_range?: string;
+    pronunciation?: string;
+  };
+  improvements: Array<{ issue: string; example: string; suggestion: string; category?: string; correction?: string; from_band?: number; to_band?: number; severity?: "minor" | "major" }>;
   model_phrases: string[];
 }
 
@@ -97,23 +110,6 @@ function WaveformBars({ active }: { active: boolean }) {
         />
       ))}
       <style>{`@keyframes speakBounce { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }`}</style>
-    </div>
-  );
-}
-
-// ─── Criteria bar ─────────────────────────────────────────────────────────────
-
-function CriteriaBar({ band, label }: { band: number; label: string }) {
-  const pct = ((band - 1) / 8) * 100;
-  const color = band >= 7 ? "bg-[rgb(var(--band-high))]" : band >= 5.5 ? "bg-[rgb(var(--band-mid))]" : "bg-[rgb(var(--band-low))]";
-  const textColor = band >= 7 ? "text-[rgb(var(--band-high))]" : band >= 5.5 ? "text-[rgb(var(--band-mid))]" : "text-[rgb(var(--band-low))]";
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-[rgb(var(--muted-foreground))] w-8 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-[rgb(var(--surface-elevated))] rounded-full overflow-hidden">
-        <div className={cn("h-full rounded-full transition-all duration-700", color)} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={cn("text-sm font-mono font-bold w-8 text-right", textColor)}>{band.toFixed(1)}</span>
     </div>
   );
 }
@@ -214,7 +210,6 @@ function SpeakingTestPageContent() {
   const [showSample, setShowSample] = useState(false);
   // "full" = all 3 parts, "single" = only the selected part
   const [mode, setMode] = useState<"full" | "single">("full");
-  const [singlePartIdx, setSinglePartIdx] = useState(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -243,26 +238,28 @@ function SpeakingTestPageContent() {
       try {
         const sb = createClient();
         if (selectedTopicId && [1, 2, 3].includes(selectedPart)) {
-          const { data: selected } = await (sb as any)
+          const { data: selectedRaw } = await sb
             .from("speaking_topics")
             .select("*")
             .eq("id", selectedTopicId)
             .single();
+          const selected = selectedRaw as unknown as SpeakingTopic | null;
           if (cancelled) return;
           if (selected) {
             const parsed = parseSpeakingTopic(selected.topic_text);
             const fallback = FALLBACK_TOPICS[(selectedPart || 1) - 1];
+            const followUps = Array.isArray(selected.follow_up_questions) ? selected.follow_up_questions.map(String) : fallback.questions;
+            const cuePoints = Array.isArray(selected.cue_card_points) ? selected.cue_card_points.map(String) : parsed.bullets ?? fallback.cue_card_points;
             const selectedTopic: Topic = {
               id: selected.id,
               part: selected.part,
               topic_text: parsed.text.trim().length > 5 ? parsed.text : fallback.topic_text,
-              questions: selected.follow_up_questions ?? fallback.questions,
-              cue_card_points: selected.cue_card_points ?? parsed.bullets ?? fallback.cue_card_points,
+              questions: followUps,
+              cue_card_points: cuePoints,
               sample_answer: selected.sample_answer,
             };
             setTopics([selectedTopic]);
             setPartIdx(0);
-            setSinglePartIdx(0);
             setMode("single");
             return;
           }
@@ -524,7 +521,7 @@ function SpeakingTestPageContent() {
       const data: SpeakingFeedback = await res.json();
       setFeedback(data);
       setPhase("feedback");
-    } catch (err) {
+    } catch {
       setError("Не удалось получить фидбек. Попробуйте снова.");
       setPhase("recorded");
     }
@@ -533,7 +530,7 @@ function SpeakingTestPageContent() {
   // ── Feedback phase ──
   if (phase === "feedback" && feedback) {
     return (
-      <SpeakingReport
+      <SpeakingReportV2
         feedback={feedback}
         topics={topics}
         showSample={showSample}
@@ -631,7 +628,7 @@ function SpeakingTestPageContent() {
               {[0, 1, 2].map((i) => (
                 <button
                   key={i}
-                  onClick={() => { setMode("single"); setSinglePartIdx(i); setPartIdx(i); setQuestionIdx(0); recordingsRef.current = {}; setPhase("intro"); }}
+                  onClick={() => { setMode("single"); setPartIdx(i); setQuestionIdx(0); recordingsRef.current = {}; setPhase("intro"); }}
                   className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
                 >
                   Part {i + 1}
@@ -867,11 +864,22 @@ function bandToCEFR(band: number): string {
   return "A1";
 }
 
+function bandDescriptor(band: number): string {
+  if (band >= 8.5) return "Expert User";
+  if (band >= 7.5) return "Very Good User";
+  if (band >= 6.5) return "Good User";
+  if (band >= 5.5) return "Competent User";
+  if (band >= 4.5) return "Modest User";
+  if (band >= 3.5) return "Limited User";
+  if (band >= 2.5) return "Extremely Limited";
+  return "Intermittent User";
+}
+
 const CRITERIA_COLORS: Record<string, string> = {
-  FC: "#6366F1",
+  FC: "#1473E6",
   LR: "#F59E0B",
-  GRA: "#818CF8",
-  PR: "#22C55E",
+  GRA: "#10B981",
+  PR: "#A855F7",
 };
 
 const CRITERIA_DESCRIPTIONS: Record<string, Record<string, string>> = {
@@ -906,8 +914,557 @@ function criteriaFilter(code: string, issue: string): boolean {
   return false;
 }
 
+function categoryFilter(code: string, item: SpeakingFeedback["improvements"][number]): boolean {
+  const category = item.category?.toLowerCase();
+  if (category) {
+    if (code === "FC") return category.includes("fluency") || category.includes("coherence");
+    if (code === "LR") return category.includes("lexical") || category.includes("vocab");
+    if (code === "GRA") return category.includes("grammar") || category.includes("grammatical");
+    if (code === "PR") return category.includes("pronunciation");
+  }
+  return criteriaFilter(code, `${item.issue} ${item.suggestion}`);
+}
+
+function cleanSpeakingText(text: string | null | undefined) {
+  return (text ?? "").replace(/[“”"]/g, "").trim();
+}
+
+function splitTranscriptForParts(transcript: string, partCount: number) {
+  const clean = transcript.replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const sentences = clean.match(/[^.!?]+[.!?]?/g)?.map((s) => s.trim()).filter(Boolean) ?? [clean];
+  const safeCount = Math.max(1, partCount);
+  const perPart = Math.max(1, Math.ceil(sentences.length / safeCount));
+  return Array.from({ length: safeCount }, (_, idx) => sentences.slice(idx * perPart, (idx + 1) * perPart).join(" ").trim()).filter(Boolean);
+}
+
+function speakingSpeed(wordCount: number, partCount: number) {
+  const estimatedSeconds = Math.max(15, partCount === 1 ? 75 : 240);
+  return Math.round((wordCount / estimatedSeconds) * 60);
+}
+
+function scoreArcStyle(band: number) {
+  const degrees = Math.max(0, Math.min(360, (band / 9) * 360));
+  return {
+    background: `conic-gradient(#1473E6 ${degrees}deg, rgb(var(--surface-elevated)) ${degrees}deg 360deg)`,
+  };
+}
+
 // ─── Speaking Report ─────────────────────────────────────────────────────────
 
+function SpeakingReportV2({
+  feedback,
+  topics,
+  showSample,
+  setShowSample,
+  onRetry,
+}: {
+  feedback: SpeakingFeedback;
+  topics: Topic[];
+  showSample: boolean;
+  setShowSample: (v: boolean) => void;
+  onRetry: () => void;
+}) {
+  const [activePart, setActivePart] = useState(0);
+  const [answerView, setAnswerView] = useState<"original" | "feedback">("feedback");
+  const [analysisTab, setAnalysisTab] = useState<"fluency" | "vocabulary" | "grammar" | "pronunciation">("fluency");
+
+  const overall = feedback.overall_band;
+  const cefr = bandToCEFR(overall);
+  const wordCount = feedback.transcript?.split(/\s+/).filter(Boolean).length ?? 0;
+  const visibleTopics = topics.length > 0 ? topics : (FALLBACK_TOPICS as Topic[]);
+  const transcriptParts = splitTranscriptForParts(feedback.transcript, visibleTopics.length);
+  const activeTopic = visibleTopics[Math.min(activePart, visibleTopics.length - 1)];
+  const activeTranscript = transcriptParts[Math.min(activePart, transcriptParts.length - 1)] || feedback.transcript;
+  const wpm = speakingSpeed(wordCount, visibleTopics.length);
+  const hesitationCount = Math.max(0, (feedback.transcript.match(/\b(um|uh|er|like|you know)\b/gi) ?? []).length);
+  const fillerCount = Math.max(0, (feedback.transcript.match(/\b(so|actually|basically|well)\b/gi) ?? []).length);
+
+  const criteriaCards = [
+    {
+      code: "FC",
+      short: "Fluency",
+      name: "Fluency & Coherence",
+      band: feedback.fluency_coherence,
+      comment: feedback.criteria_comments?.fluency_coherence,
+    },
+    {
+      code: "LR",
+      short: "Lexical",
+      name: "Lexical Resource",
+      band: feedback.lexical_resource,
+      comment: feedback.criteria_comments?.lexical_resource,
+    },
+    {
+      code: "GRA",
+      short: "Grammar",
+      name: "Grammatical Range",
+      band: feedback.grammatical_range,
+      comment: feedback.criteria_comments?.grammatical_range,
+    },
+    {
+      code: "PR",
+      short: "Pronun.",
+      name: "Pronunciation",
+      band: feedback.pronunciation,
+      comment: feedback.criteria_comments?.pronunciation,
+    },
+  ];
+
+  const grammarFixes = feedback.improvements.filter((imp) => categoryFilter("GRA", imp));
+  const vocabFixes = feedback.improvements.filter((imp) => categoryFilter("LR", imp));
+  const pronunciationFixes = feedback.improvements.filter((imp) => categoryFilter("PR", imp));
+  const recommendations = feedback.improvements.length > 0
+    ? feedback.improvements.map((imp) => imp.suggestion)
+    : [
+      "Увеличивайте длину ответов: добавляйте причину, пример и короткий вывод.",
+      "Старайтесь заменять простые слова более точными IELTS-фразами.",
+      "Практикуйте ответы вслух с таймером, чтобы уменьшить паузы.",
+    ];
+
+  const detailTabs = [
+    { id: "fluency", label: "Fluency", code: "FC" },
+    { id: "vocabulary", label: "Vocabulary", code: "LR" },
+    { id: "grammar", label: "Grammar", code: "GRA" },
+    { id: "pronunciation", label: "Pronunciation", code: "PR" },
+  ] as const;
+  const activeCriterion = criteriaCards.find((c) => c.code === detailTabs.find((t) => t.id === analysisTab)?.code) ?? criteriaCards[0];
+  const activeImprovements = feedback.improvements.filter((imp) => categoryFilter(activeCriterion.code, imp));
+
+  async function shareReport() {
+    const text = `IELTS Speaking: ${overall.toFixed(1)} (${cefr})`;
+    try {
+      if (navigator.share) await navigator.share({ title: "IELTS Speaking Report", text });
+      else await navigator.clipboard.writeText(text);
+    } catch { /* user cancelled */ }
+  }
+
+  return (
+    <div className="min-h-screen bg-[rgb(var(--background))]">
+      <header className="sticky top-0 z-40 border-b border-[rgb(var(--border))] bg-[rgb(var(--surface))]">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
+          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
+            <ChevronLeft className="h-4 w-4" />Dashboard
+          </Link>
+          <div className="ml-2 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-[rgb(var(--primary))]" />
+            <span className="text-sm font-medium">Speaking Report</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-8">
+        <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-[rgb(var(--foreground))] sm:text-4xl">Результаты: Спикинг</h1>
+            <p className="mt-1 text-base text-[rgb(var(--muted-foreground))]">
+              Завершено {new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date())} г.
+            </p>
+          </div>
+          <Button variant="outline" className="gap-2 rounded-xl shadow-sm" onClick={shareReport}>
+            <Share2 className="h-4 w-4" />
+            Поделиться
+          </Button>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-lg">
+          <div className="h-1.5 bg-[#1473E6]" />
+          <div className="grid gap-8 p-6 lg:grid-cols-[260px_1fr] lg:p-8">
+            <div className="flex justify-center lg:justify-start">
+              <div className="relative flex h-48 w-48 items-center justify-center rounded-full" style={scoreArcStyle(overall)}>
+                <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full bg-[rgb(var(--surface))]">
+                  <span className="font-mono text-6xl font-bold text-[rgb(var(--foreground))]">{overall.toFixed(1)}</span>
+                  <span className="text-sm font-medium text-[rgb(var(--muted-foreground))]">из 9.0</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col justify-center gap-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[rgb(var(--foreground))]">Общий балл IELTS</h2>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Badge className="rounded-full bg-[#1473E6] px-4 py-1.5 text-sm text-white hover:bg-[#1473E6]">CEFR {cefr}</Badge>
+                  <span className="text-base text-[rgb(var(--muted-foreground))]">{bandDescriptor(overall)}</span>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-4">
+                {criteriaCards.map((c) => (
+                  <div key={c.code} className="rounded-xl bg-[rgb(var(--surface-elevated))] p-4 text-center">
+                    <div className="font-mono text-2xl font-bold text-[rgb(var(--foreground))]">{c.band.toFixed(1)}</div>
+                    <div className="mt-1 text-sm text-[rgb(var(--muted-foreground))]">{c.short}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-[rgb(var(--border))] pt-8">
+          <h2 className="mb-5 text-2xl font-bold text-[rgb(var(--foreground))]">Оценка по критериям</h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            {criteriaCards.map((c) => {
+              const level = c.band >= 7 ? "high" : c.band >= 5 ? "mid" : "low";
+              const comment = c.comment || CRITERIA_DESCRIPTIONS[c.code]?.[level] || feedback.summary;
+              return (
+                <div key={c.code} className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-sm">
+                  <div className="mb-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: CRITERIA_COLORS[c.code] }} />
+                      <h3 className="font-semibold text-[rgb(var(--foreground))]">{c.name}</h3>
+                    </div>
+                    <span className="font-mono text-3xl font-bold text-[rgb(var(--foreground))]">{c.band.toFixed(1)}</span>
+                  </div>
+                  <p className="text-base leading-relaxed text-[rgb(var(--muted-foreground))]">{comment}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-5 text-2xl font-bold text-[rgb(var(--foreground))]">Быстрый обзор</h2>
+          <div className="grid gap-5 lg:grid-cols-3">
+            <QuickReviewCard title="Грамматика" color="#EF4444" items={grammarFixes} empty="Критичных грамматических правок не найдено." />
+            <QuickReviewCard title="Лексика" color="#F59E0B" items={vocabFixes.length ? vocabFixes : feedback.model_phrases.map((phrase) => ({ issue: "Улучшить лексику", example: "basic phrase", correction: phrase, suggestion: "Используйте эту фразу в похожем ответе." }))} empty="Добавьте больше точной тематической лексики." />
+            <PronunciationReviewCard items={pronunciationFixes} />
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-5 text-2xl font-bold text-[rgb(var(--foreground))]">Детальный анализ по частям</h2>
+          <div className="overflow-hidden rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-sm">
+            <div className="grid border-b border-[rgb(var(--border))] sm:grid-cols-3">
+              {visibleTopics.map((topic, index) => (
+                <button
+                  key={topic.id ?? index}
+                  type="button"
+                  onClick={() => setActivePart(index)}
+                  className={cn(
+                    "border-b-2 px-4 py-4 text-base transition-colors",
+                    activePart === index ? "border-[#1473E6] text-[rgb(var(--foreground))]" : "border-transparent text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
+                  )}
+                >
+                  Part {topic.part ?? index + 1} <span className="text-sm text-[rgb(var(--muted-foreground))]">{index === 1 ? "120с" : "15с"}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-4 border-b border-[rgb(var(--border))] px-6 py-4">
+              <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1473E6] text-white">
+                <Play className="h-5 w-5 fill-current" />
+              </button>
+              <span className="font-mono text-sm text-[rgb(var(--muted-foreground))]">0:00</span>
+              <div className="h-2 flex-1 rounded-full bg-blue-100">
+                <div className="h-full w-1/4 rounded-full bg-blue-300" />
+              </div>
+              <span className="font-mono text-sm text-[rgb(var(--muted-foreground))]">{activePart === 1 ? "2:00" : "0:15"}</span>
+            </div>
+
+            <div className="grid lg:grid-cols-[1fr_1fr]">
+              <div className="border-b border-[rgb(var(--border))] p-6 lg:border-b-0 lg:border-r">
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mic2 className="h-5 w-5 text-[rgb(var(--muted-foreground))]" />
+                    <span className="text-lg font-semibold text-[rgb(var(--foreground))]">Ваш ответ</span>
+                  </div>
+                  <div className="inline-flex rounded-full border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] p-1">
+                    <button type="button" onClick={() => setAnswerView("original")} className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm", answerView === "original" ? "bg-[rgb(var(--surface))] shadow-sm" : "text-[rgb(var(--muted-foreground))]")}>
+                      <Eye className="h-4 w-4" />
+                      Original
+                    </button>
+                    <button type="button" onClick={() => setAnswerView("feedback")} className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm", answerView === "feedback" ? "bg-[rgb(var(--surface))] shadow-sm" : "text-[rgb(var(--muted-foreground))]")}>
+                      <MessageCircle className="h-4 w-4" />
+                      Feedback
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-5 flex gap-6 text-sm">
+                  <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-500" />Good pause</span>
+                  <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-rose-500" />Bad pause</span>
+                </div>
+
+                <div className="flex flex-col gap-5">
+                  {(activeTopic?.questions ?? [activeTopic?.topic_text].filter(Boolean) as string[]).slice(0, 5).map((question, index) => (
+                    <div key={`${question}-${index}`} className="flex flex-col gap-2">
+                      <p className="text-base italic leading-relaxed text-indigo-500">{question}</p>
+                      <div className="flex items-center gap-2 text-sm text-[rgb(var(--muted-foreground))]">
+                        <button type="button" className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-blue-500">
+                          <Play className="h-3 w-3 fill-current" />
+                        </button>
+                        <span className="font-mono">0:{String(index * 3).padStart(2, "0")} - 0:{String(index * 3 + 2).padStart(2, "0")}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <p className={cn("whitespace-pre-wrap text-lg leading-relaxed", answerView === "feedback" ? "text-[rgb(var(--foreground))]" : "text-[rgb(var(--muted-foreground))]")}>
+                    {activeTranscript || "Транскрипт недоступен."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="mb-6 flex flex-wrap gap-3">
+                  {detailTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setAnalysisTab(tab.id)}
+                      className={cn(
+                        "rounded-xl px-4 py-2 text-base font-medium transition-colors",
+                        analysisTab === tab.id ? "bg-[#1473E6] text-white" : "bg-[rgb(var(--surface-elevated))] text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <h3 className="mb-5 text-xl font-bold text-[rgb(var(--foreground))]">{activeCriterion.short} Analysis</h3>
+                {analysisTab === "fluency" ? (
+                  <FluencyAnalysis wpm={wpm} hesitationCount={hesitationCount} fillerCount={fillerCount} duration={activePart === 1 ? 120 : 15} />
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <div className="rounded-2xl bg-[rgb(var(--surface-elevated))] p-5">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="font-semibold text-[rgb(var(--foreground))]">{activeCriterion.name}</span>
+                        <span className="font-mono text-2xl font-bold">{activeCriterion.band.toFixed(1)}</span>
+                      </div>
+                      <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+                        {activeCriterion.comment || CRITERIA_DESCRIPTIONS[activeCriterion.code]?.[activeCriterion.band >= 7 ? "high" : activeCriterion.band >= 5 ? "mid" : "low"]}
+                      </p>
+                    </div>
+                    {(activeImprovements.length ? activeImprovements : feedback.improvements.slice(0, 2)).map((imp, index) => (
+                      <div key={index} className="rounded-xl border border-[rgb(var(--border))] p-4">
+                        <p className="font-semibold text-[rgb(var(--foreground))]">{imp.issue}</p>
+                        {imp.example && (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                            <p className="text-sm text-rose-600 line-through">{cleanSpeakingText(imp.example)}</p>
+                            <ArrowRight className="hidden h-4 w-4 text-[rgb(var(--muted-foreground))] sm:block" />
+                            <p className="text-sm font-medium text-emerald-700">{cleanSpeakingText(imp.correction) || imp.suggestion}</p>
+                          </div>
+                        )}
+                        <p className="mt-2 text-sm text-[rgb(var(--muted-foreground))]">{imp.suggestion}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-5 text-2xl font-bold text-[rgb(var(--foreground))]">Сильные стороны и рекомендации</h2>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-200 bg-[rgb(var(--surface))] p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <h3 className="text-lg font-semibold text-[rgb(var(--foreground))]">Сильные стороны</h3>
+              </div>
+              <ul className="flex flex-col gap-4">
+                {(feedback.strengths.length ? feedback.strengths : ["Вы завершили Speaking-попытку и получили транскрипт для анализа."]).map((item, index) => (
+                  <li key={index} className="flex gap-3 text-base leading-relaxed text-[rgb(var(--muted-foreground))]">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-orange-200 bg-[rgb(var(--surface))] p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <Gauge className="h-5 w-5 text-orange-500" />
+                <h3 className="text-lg font-semibold text-[rgb(var(--foreground))]">Рекомендации</h3>
+              </div>
+              <ul className="flex flex-col gap-4">
+                {recommendations.slice(0, 4).map((item, index) => (
+                  <li key={index} className="flex gap-3 text-base leading-relaxed text-[rgb(var(--muted-foreground))]">
+                    <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-orange-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {feedback.model_phrases?.length > 0 && (
+          <section className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6">
+            <div className="mb-4 font-semibold text-[rgb(var(--foreground))]">Полезные фразы</div>
+            <div className="flex flex-wrap gap-2">
+              {feedback.model_phrases.map((phrase, index) => (
+                <span key={index} className="rounded-full bg-[rgb(var(--primary)/0.08)] px-3 py-1.5 text-sm font-medium text-[rgb(var(--primary))]">{phrase}</span>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {topics[1]?.sample_answer && (
+          <section className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5">
+            <button onClick={() => setShowSample(!showSample)} className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-semibold text-[rgb(var(--foreground))]">Образец ответа Band 8+</span>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 text-[rgb(var(--muted-foreground))] transition-transform", showSample && "rotate-180")} />
+            </button>
+            {showSample && (
+              <div className="mt-4 border-t border-amber-200 pt-4">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[rgb(var(--foreground))]">{topics[1].sample_answer}</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        <div className="flex gap-3">
+          <Button variant="outline" className="flex-1" asChild><Link href="/dashboard">Dashboard</Link></Button>
+          <Button className="flex-1" onClick={onRetry}>Ещё практика</Button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function QuickReviewCard({
+  title,
+  color,
+  items,
+  empty,
+}: {
+  title: string;
+  color: string;
+  items: Array<Pick<SpeakingFeedback["improvements"][number], "issue" | "example" | "suggestion" | "correction" | "severity" | "from_band" | "to_band">>;
+  empty: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-sm">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+        <h3 className="text-lg font-semibold text-[rgb(var(--foreground))]">{title}</h3>
+      </div>
+      <div className="flex flex-col gap-4">
+        {items.length > 0 ? items.slice(0, 5).map((item, index) => {
+          const example = cleanSpeakingText(item.example);
+          const correction = cleanSpeakingText(item.correction) || item.suggestion;
+          return (
+            <div key={index} className="text-base leading-relaxed">
+              {example && <span className="text-rose-600 line-through decoration-2">{example}</span>}
+              {example && <span className="mx-1 text-[rgb(var(--muted-foreground))]">→</span>}
+              <span className="text-emerald-700">{correction}</span>
+              {item.severity === "major" && <Badge className="ml-2 rounded-full bg-rose-500 text-white hover:bg-rose-500">major</Badge>}
+              {item.from_band && item.to_band && (
+                <Badge variant="secondary" className="ml-2 rounded-full">Band {item.from_band} → Band {item.to_band}</Badge>
+              )}
+            </div>
+          );
+        }) : (
+          <p className="text-base text-[rgb(var(--muted-foreground))]">{empty}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PronunciationReviewCard({ items }: { items: SpeakingFeedback["improvements"] }) {
+  const fallback = [
+    { word: "that", sound: "/ðæt/" },
+    { word: "we", sound: "/wiː/" },
+    { word: "just", sound: "/dʒʌst/" },
+    { word: "have", sound: "/hæv/" },
+  ];
+  return (
+    <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-sm">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="h-3 w-3 rounded-full bg-purple-500" />
+        <h3 className="text-lg font-semibold text-[rgb(var(--foreground))]">Произношение</h3>
+      </div>
+      <div className="flex flex-col gap-3">
+        {(items.length > 0 ? items.slice(0, 5).map((item) => ({ word: cleanSpeakingText(item.example || item.issue), sound: item.correction || item.suggestion })) : fallback).map((item, index) => (
+          <div key={index} className="flex items-center justify-between gap-4">
+            <span className="text-base text-[rgb(var(--foreground))]">{item.word}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-[rgb(var(--muted-foreground))]">{item.sound}</span>
+              <Badge variant="outline" className="rounded-full border-rose-300 text-rose-600">10%</Badge>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FluencyAnalysis({
+  wpm,
+  hesitationCount,
+  fillerCount,
+  duration,
+}: {
+  wpm: number;
+  hesitationCount: number;
+  fillerCount: number;
+  duration: number;
+}) {
+  const marker = Math.min(96, Math.max(2, ((wpm - 60) / 140) * 100));
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="rounded-2xl bg-[rgb(var(--surface-elevated))] p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-[#1473E6]">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <span className="text-base text-[rgb(var(--muted-foreground))]">Speaking Speed</span>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-5xl font-bold text-[rgb(var(--foreground))]">{wpm}</div>
+            <div className="text-sm text-[rgb(var(--muted-foreground))]">words/minute</div>
+          </div>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-[rgb(var(--surface-elevated))] p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <Clock className="h-5 w-5 text-[rgb(var(--muted-foreground))]" />
+          <span className="text-lg font-semibold text-[rgb(var(--foreground))]">Speech Analysis</span>
+        </div>
+        <div className="mb-2 flex justify-between text-sm text-[rgb(var(--muted-foreground))]">
+          {[60, 90, 120, 150, 180, 200].map((n) => <span key={n}>{n}</span>)}
+        </div>
+        <div className="relative h-5 rounded-full" style={{ background: "linear-gradient(to right, #EF4444, #F59E0B, #22C55E 42%, #22C55E 62%, #F59E0B, #EF4444)" }}>
+          <span className="absolute top-0 h-5 w-2 rounded-full bg-[rgb(var(--foreground))]" style={{ left: `${marker}%` }} />
+        </div>
+        <div className="mt-2 flex justify-between text-sm">
+          <span className="text-rose-500">Too Slow</span>
+          <span className="text-emerald-600">Normal</span>
+          <span className="text-rose-500">Too Fast</span>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-blue-50 p-5 text-blue-700">
+        <div className="flex gap-3">
+          <Info className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm leading-relaxed">Examiners will most likely enjoy your speaking if you speak using around 120 to 150 words per minute.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-xl bg-[rgb(var(--surface-elevated))] p-4 text-center">
+          <div className="text-3xl font-bold">{hesitationCount}</div>
+          <div className="mt-1 text-sm text-[rgb(var(--muted-foreground))]">Hesitations</div>
+        </div>
+        <div className="rounded-xl bg-[rgb(var(--surface-elevated))] p-4 text-center">
+          <div className="text-3xl font-bold">{Math.max(0, Math.round(duration / 35) - hesitationCount)}</div>
+          <div className="mt-1 text-sm text-[rgb(var(--muted-foreground))]">Good Pauses</div>
+        </div>
+        <div className="rounded-xl bg-[rgb(var(--surface-elevated))] p-4 text-center">
+          <div className="text-3xl font-bold">{fillerCount}</div>
+          <div className="mt-1 text-sm text-[rgb(var(--muted-foreground))]">Fillers</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 text-sm text-[rgb(var(--muted-foreground))]">
+        <Timer className="h-4 w-4" />
+        Duration: {duration}s
+      </div>
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function SpeakingReport({
   feedback,
   topics,

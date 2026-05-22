@@ -84,9 +84,10 @@ Return ONLY valid JSON matching this exact schema:
   "summary": "<2–3 sentence overall comment in Russian>",
   "strengths": ["<Russian>", "<Russian>", "<Russian>"],
   "improvements": [
-    { "issue": "<short Russian label>", "example": "<exact quote from essay>", "suggestion": "<specific fix in Russian>" },
-    { "issue": "<short Russian label>", "example": "<exact quote from essay>", "suggestion": "<specific fix in Russian>" },
-    { "issue": "<short Russian label>", "example": "<exact quote from essay>", "suggestion": "<specific fix in Russian>" }
+    { "category": "grammar", "issue": "<short Russian label>", "example": "<exact quote from essay>", "correction": "<improved replacement text in English>", "suggestion": "<specific explanation in Russian>" },
+    { "category": "vocabulary", "issue": "<short Russian label>", "example": "<exact quote from essay>", "correction": "<improved replacement text in English>", "suggestion": "<specific explanation in Russian>" },
+    { "category": "coherence", "issue": "<short Russian label>", "example": "<exact quote from essay>", "correction": "<improved replacement text in English>", "suggestion": "<specific explanation in Russian>" },
+    { "category": "task", "issue": "<short Russian label>", "example": "<exact quote from essay>", "correction": "<improved replacement text in English>", "suggestion": "<specific explanation in Russian>" }
   ],
   "corrected_intro": "<rewrite the first paragraph showing improvements>"
 }
@@ -95,7 +96,10 @@ Rules:
 - overall_band = average of 4 criteria rounded to nearest 0.5
 - All band scores must be multiples of 0.5
 - Word count minimum is ${minWords}; note in summary if under
-- Be specific, cite exact phrases from the essay`;
+- Be specific, cite exact phrases from the essay
+- "example" must be copied from the student's essay exactly so the UI can highlight it
+- "correction" must be a direct improved replacement for the example, not an explanation
+- Use category only from: task, coherence, vocabulary, grammar`;
 
     const { text } = await generateText({
       model: openai("gpt-4o"),
