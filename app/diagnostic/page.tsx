@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatBand } from "@/lib/utils";
 import {
   BookOpen,
-  Headphones,
   Brain,
   Clock,
   ChevronRight,
@@ -108,49 +107,6 @@ const DIAGNOSTIC_QUESTIONS = [
     answer: 2,
   },
 
-  // Listening (4 questions - simulate with text)
-  {
-    id: "l1",
-    skill: "listening" as const,
-    audioSim:
-      "Announcer: Welcome to the Greenfield Community Centre. The swimming pool is open Monday to Friday from 6am to 9pm, and on weekends from 7am to 6pm. Please note that the pool will be closed for maintenance next Tuesday.",
-    question: "What time does the swimming pool close on Saturdays?",
-    options: ["9pm", "7am", "6pm", "8pm"],
-    answer: 2,
-  },
-  {
-    id: "l2",
-    skill: "listening" as const,
-    audioSim:
-      "Tutor: For the assignment, I need you to focus on three main areas: the historical context, the economic factors, and the social impact. You should aim for around 2,500 words. Please submit it by Friday of next week — not this week.",
-    question: "When is the assignment due?",
-    options: [
-      "This Friday",
-      "Next Friday",
-      "In two weeks",
-      "The tutor did not specify",
-    ],
-    answer: 1,
-  },
-  {
-    id: "l3",
-    skill: "listening" as const,
-    audioSim:
-      "Shop assistant: The blue jacket you liked is available in sizes small, medium and extra-large. Unfortunately, we're currently out of stock in large. It should be back in stock in about two weeks.",
-    question: "Which size of the blue jacket is currently unavailable?",
-    options: ["Small", "Medium", "Large", "Extra-large"],
-    answer: 2,
-  },
-  {
-    id: "l4",
-    skill: "listening" as const,
-    audioSim:
-      "Tour guide: The museum has four floors. The ground floor houses temporary exhibitions, the first floor has Ancient Egypt and Greek collections, the second floor is dedicated to modern art, and the third floor contains the café and gift shop.",
-    question: "On which floor is the café located?",
-    options: ["Ground floor", "First floor", "Second floor", "Third floor"],
-    answer: 3,
-  },
-
   // Grammar/Vocabulary (5 questions)
   {
     id: "g1",
@@ -200,13 +156,14 @@ const DIAGNOSTIC_QUESTIONS = [
   },
 ];
 
-type Skill = "reading" | "listening" | "grammar";
+type Skill = "reading" | "grammar";
 
 const SKILL_META: Record<Skill, { icon: typeof BookOpen; label: string; color: string; bg: string }> = {
   reading: { icon: BookOpen, label: "Reading", color: "text-blue-500", bg: "bg-blue-50" },
-  listening: { icon: Headphones, label: "Listening", color: "text-purple-500", bg: "bg-purple-50" },
   grammar: { icon: Brain, label: "Grammar", color: "text-[rgb(var(--primary))]", bg: "bg-violet-50" },
 };
+
+const DIAGNOSTIC_SKILLS: Skill[] = ["reading", "grammar"];
 
 type Phase = "intro" | "test" | "results";
 
@@ -214,7 +171,7 @@ type Phase = "intro" | "test" | "results";
 
 function estimateBand(correct: number, total: number, skill: Skill): number {
   const pct = correct / total;
-  if (skill === "reading" || skill === "listening") {
+  if (skill === "reading") {
     if (pct >= 0.9) return 8.0;
     if (pct >= 0.8) return 7.0;
     if (pct >= 0.67) return 6.0;
@@ -267,7 +224,6 @@ export default function DiagnosticPage() {
   // ── Results calc ──
   const bySkill: Record<Skill, { correct: number; total: number }> = {
     reading: { correct: 0, total: 0 },
-    listening: { correct: 0, total: 0 },
     grammar: { correct: 0, total: 0 },
   };
   DIAGNOSTIC_QUESTIONS.forEach((dq) => {
@@ -277,15 +233,14 @@ export default function DiagnosticPage() {
   });
   const bands: Record<Skill, number> = {
     reading: estimateBand(bySkill.reading.correct, bySkill.reading.total, "reading"),
-    listening: estimateBand(bySkill.listening.correct, bySkill.listening.total, "listening"),
     grammar: estimateBand(bySkill.grammar.correct, bySkill.grammar.total, "grammar"),
   };
-  const overallBand = Math.round(((bands.reading + bands.listening + bands.grammar) / 3) * 2) / 2;
+  const overallBand = Math.round(((bands.reading + bands.grammar) / 2) * 2) / 2;
 
   // ── Save results to Supabase when results phase is reached ──
   useEffect(() => {
     if (phase !== "results") return;
-    const weakSkills = (["reading", "listening", "grammar"] as Skill[])
+    const weakSkills = DIAGNOSTIC_SKILLS
       .filter((s) => bands[s] < 6.0);
 
     async function persist() {
@@ -296,7 +251,7 @@ export default function DiagnosticPage() {
           user_id: user?.id ?? null,
           session_token: null,
           band_reading: bands.reading,
-          band_listening: bands.listening,
+          band_listening: null,
           band_grammar: bands.grammar,
           overall_band: overallBand,
           weak_skills: weakSkills,
@@ -325,13 +280,13 @@ export default function DiagnosticPage() {
               Диагностика уровня IELTS
             </h1>
             <p className="text-[rgb(var(--muted-foreground))] mb-8 leading-relaxed">
-              {total} вопросов по Reading, Listening и Grammar. Займёт около{" "}
-              <strong className="text-[rgb(var(--foreground))]">15 минут</strong>. По итогам
+              {total} вопросов по Reading и Grammar. Займёт около{" "}
+              <strong className="text-[rgb(var(--foreground))]">10 минут</strong>. По итогам
               получишь оценку band и персональные рекомендации.
             </p>
 
             <div className="flex flex-col gap-3 mb-8">
-              {(["reading", "listening", "grammar"] as Skill[]).map((skill) => {
+              {DIAGNOSTIC_SKILLS.map((skill) => {
                 const { icon: Icon, label, color, bg } = SKILL_META[skill];
                 const count = DIAGNOSTIC_QUESTIONS.filter((q) => q.skill === skill).length;
                 return (
@@ -354,7 +309,7 @@ export default function DiagnosticPage() {
 
             <div className="flex items-center justify-center gap-2 text-sm text-[rgb(var(--muted-foreground))] mb-6">
               <Clock className="w-4 h-4" />
-              ~15 минут
+              ~10 минут
             </div>
 
             <Button size="xl" className="w-full" onClick={() => setPhase("test")}>
@@ -401,7 +356,7 @@ export default function DiagnosticPage() {
                 Твой расчётный уровень
               </h1>
               <p className="text-[rgb(var(--muted-foreground))] text-sm">
-                На основе {total} вопросов диагностики
+                На основе Reading и Grammar диагностики
               </p>
             </div>
 
@@ -524,23 +479,10 @@ export default function DiagnosticPage() {
           {skillLabel}
         </div>
 
-        {/* Passage / audio sim */}
+        {/* Passage */}
         {q.skill === "reading" && "passage" in q && (
           <div className="passage-text bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl p-5 mb-6 text-[15px]">
             {q.passage}
-          </div>
-        )}
-        {q.skill === "listening" && "audioSim" in q && (
-          <div className="bg-purple-50 border border-purple-100 rounded-xl p-5 mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Headphones className="w-4 h-4 text-purple-500" />
-              <span className="text-xs font-semibold text-purple-600 uppercase tracking-wide">
-                Transcript (simulation)
-              </span>
-            </div>
-            <p className="text-sm text-[rgb(var(--foreground))] leading-relaxed italic">
-              {q.audioSim}
-            </p>
           </div>
         )}
 

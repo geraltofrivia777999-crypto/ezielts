@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Navbar } from "@/components/layout/navbar";
+import { PRICING_PLANS } from "@/lib/plans";
 import {
   CheckCircle2,
   BookOpen,
@@ -87,58 +88,6 @@ const TESTIMONIALS = [
     before: 6.5,
     after: 8.0,
     text: "Speaking Coach — это находка. Слышишь себя со стороны + видишь что именно снижало Fluency.",
-  },
-];
-
-const PLANS = [
-  {
-    name: "Free",
-    price: 0,
-    period: "",
-    description: "Попробуй платформу",
-    features: [
-      "1 IELTS тест / день",
-      "Reading, Listening, Writing или Speaking",
-      "Каталог тестов и отметки прогресса",
-      "График прогресса",
-      "3 вопроса AI-Tutor",
-    ],
-    cta: "Начать бесплатно",
-    href: "/diagnostic",
-    highlight: false,
-  },
-  {
-    name: "Pro",
-    price: 8,
-    period: "/ мес",
-    description: "Серьёзная подготовка",
-    features: [
-      "Безлимитные тесты",
-      "AI Writing Feedback",
-      "AI Speaking Coach",
-      "Персональный план",
-      "AI-Tutor без лимитов",
-      "Гарантия +1 балл",
-    ],
-    cta: "Начать Pro — $8/мес",
-    href: "/signup?plan=pro",
-    highlight: true,
-  },
-  {
-    name: "Pro Год",
-    price: 4,
-    period: "/ мес",
-    description: "Лучшая ценность ($48/год)",
-    features: [
-      "Всё из Pro",
-      "Экономия 50%",
-      "Приоритетная поддержка",
-      "Ранний доступ к новым тестам",
-    ],
-    cta: "Начать годовой план",
-    href: "/signup?plan=annual",
-    highlight: false,
-    tag: "ЛУЧШАЯ ЦЕНА",
   },
 ];
 
@@ -612,30 +561,30 @@ export default async function LandingPage({
             <h2 className="text-3xl md:text-4xl font-bold text-[rgb(var(--foreground))] mb-4">
               Прозрачные цены без скрытых платежей
             </h2>
-            <p className="text-[rgb(var(--muted-foreground))]">
-              Начни бесплатно, улучши план когда будешь готов
+          <p className="text-[rgb(var(--muted-foreground))]">
+              1 месяц, 3 месяца или 12 месяцев — выбери срок подготовки
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            {PLANS.map((plan) => (
+            {PRICING_PLANS.map((plan) => (
               <div key={plan.name} className="relative">
-                {plan.tag && (
+                {plan.badge && (
                   <div
                     className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white whitespace-nowrap"
                     style={{ background: "rgb(var(--secondary))" }}
                   >
-                    {plan.tag}
+                    {plan.badge}
                   </div>
                 )}
                 <Card
                   className={
-                    plan.highlight
+                    plan.accent === "blue"
                       ? "border-[rgb(var(--primary))] shadow-lg shadow-[rgb(var(--primary)/0.12)] relative"
                       : ""
                   }
                 >
-                  {plan.highlight && (
+                  {plan.accent === "blue" && (
                     <div
                       className="absolute inset-0 rounded-[calc(var(--radius)*1.5)] pointer-events-none"
                       style={{
@@ -647,33 +596,31 @@ export default async function LandingPage({
                   <CardContent className="p-6 flex flex-col gap-5">
                     <div>
                       <div className="text-sm font-medium text-[rgb(var(--muted-foreground))] mb-1">
-                        {plan.name}
+                        {plan.eyebrow}
                       </div>
                       <div className="flex items-end gap-1">
                         <span className="text-4xl font-bold text-[rgb(var(--foreground))]">
-                          {plan.price === 0 ? "Free" : `$${plan.price}`}
+                          ${plan.price}
                         </span>
-                        {plan.period && (
-                          <span className="text-[rgb(var(--muted-foreground))] mb-1">
-                            {plan.period}
-                          </span>
-                        )}
+                        <span className="text-[rgb(var(--muted-foreground))] mb-1">
+                          {plan.name}
+                        </span>
                       </div>
                       <div className="text-sm text-[rgb(var(--muted-foreground))] mt-1">
-                        {plan.description}
+                        {plan.monthlyLabel ?? plan.periodLabel}
                       </div>
                     </div>
 
                     <Button
-                      variant={plan.highlight ? "default" : "outline"}
+                      variant={plan.accent === "blue" ? "default" : "outline"}
                       className="w-full"
                       asChild
                     >
-                      <Link href={plan.href}>{plan.cta}</Link>
+                      <Link href={plan.checkoutHref}>Выбрать тариф</Link>
                     </Button>
 
                     <ul className="flex flex-col gap-2.5">
-                      {plan.features.map((f) => (
+                      {plan.included.slice(0, 5).map((f) => (
                         <li key={f} className="flex items-center gap-2.5 text-sm text-[rgb(var(--foreground))]">
                           <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))] shrink-0" />
                           {f}

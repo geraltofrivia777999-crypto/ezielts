@@ -6,7 +6,7 @@
 
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
-export type Plan = "free" | "pro_monthly" | "pro_annual";
+export type Plan = "free" | "pro_monthly" | "pro_quarterly" | "pro_annual";
 export type SubStatus = "active" | "cancelled" | "expired" | "trialing";
 export type ContentType = "reading" | "listening" | "writing" | "speaking";
 export type ExamType = "academic" | "general" | "unknown";

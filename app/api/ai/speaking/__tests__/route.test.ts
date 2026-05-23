@@ -3,16 +3,24 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/queries", () => ({
-  checkDailyLimit: vi.fn(),
+  countUserAttemptsSince: vi.fn(),
   incrementUsage: vi.fn(),
   saveAttempt: vi.fn(),
+}));
+vi.mock("@/lib/supabase/access", () => ({
+  getActivePlanForUser: vi.fn(),
+  subscriptionRequiredResponse: () => new Response(
+    JSON.stringify({ error: "subscription_required" }),
+    { status: 403, headers: { "Content-Type": "application/json" } }
+  ),
 }));
 vi.mock("ai", () => ({ generateText: vi.fn() }));
 vi.mock("@ai-sdk/openai", () => ({ openai: vi.fn(() => "model-stub") }));
 
 import { POST } from "@/app/api/ai/speaking/route";
 import { createClient } from "@/lib/supabase/server";
-import { checkDailyLimit, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { countUserAttemptsSince, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { getActivePlanForUser } from "@/lib/supabase/access";
 import { generateText } from "ai";
 import { createMockSupabaseClient, authedMock } from "@/__tests__/helpers/mock-supabase";
 import { makeAudioBlob } from "@/__tests__/helpers/factories";
@@ -41,10 +49,11 @@ function mockWhisper(text: string, ok = true) {
   );
 }
 
-function setupOk(opts: { user?: { id: string }; limit?: boolean } = {}) {
+function setupOk(opts: { user?: { id: string }; plan?: "free" | "pro_monthly" | "pro_quarterly"; weeklyCount?: number } = {}) {
   const sb = opts.user ? authedMock(opts.user.id) : createMockSupabaseClient();
   (createClient as Mock).mockResolvedValue(sb);
-  (checkDailyLimit as Mock).mockResolvedValue(opts.limit ?? true);
+  (getActivePlanForUser as Mock).mockResolvedValue(opts.plan ?? "pro_quarterly");
+  (countUserAttemptsSince as Mock).mockResolvedValue(opts.weeklyCount ?? 0);
   (generateText as Mock).mockResolvedValue({ text: JSON.stringify(VALID_FEEDBACK) });
   mockWhisper(VALID_TRANSCRIPT);
   return sb;

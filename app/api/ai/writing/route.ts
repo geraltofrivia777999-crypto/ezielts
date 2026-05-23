@@ -1,8 +1,9 @@
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
-import { checkDailyLimit, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
-import { isProUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
+import { countUserAttemptsSince, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { getActivePlanForUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
+import { getPlanEntitlements } from "@/lib/plans";
 import { clampBand } from "@/lib/utils";
 import { WRITING_ABSOLUTE_MIN_WORDS, WRITING_TASK1_MIN_WORDS, WRITING_TASK2_MIN_WORDS } from "@/lib/api-constants";
 
@@ -44,20 +45,26 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!(await isProUser(sb, user.id))) {
+    const activePlan = await getActivePlanForUser(sb, user.id);
+    const entitlements = getPlanEntitlements(activePlan);
+    const weeklyLimit = entitlements.writingChecksPerWeek;
+
+    if (weeklyLimit === 0) {
       return subscriptionRequiredResponse();
     }
 
-    if (user) {
-      const allowed = await checkDailyLimit(sb, user.id, "writing");
-      if (!allowed) {
+    if (weeklyLimit !== null) {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const used = await countUserAttemptsSince(sb, user.id, "writing", since);
+      if (used >= weeklyLimit) {
         return new Response(
-          JSON.stringify({ error: "limit_reached", message: "AI Writing доступен только по подписке Pro." }),
+          JSON.stringify({
+            error: "limit_reached",
+            message: `На тарифе 1 месяц доступно ${weeklyLimit} AI Writing проверки в неделю. Обновите тариф, чтобы получить безлимит.`,
+          }),
           { status: 429, headers: { "Content-Type": "application/json" } }
         );
       }
-      // NOTE: incrementUsage moved to AFTER successful AI evaluation so that
-      // failed OpenAI calls do not burn the user's daily quota.
     }
 
     const systemPrompt = `You are an expert IELTS examiner with 15+ years of experience.
@@ -89,6 +96,17 @@ Return ONLY valid JSON matching this exact schema:
     { "category": "coherence", "issue": "<short Russian label>", "example": "<exact quote from essay>", "correction": "<improved replacement text in English>", "suggestion": "<specific explanation in Russian>" },
     { "category": "task", "issue": "<short Russian label>", "example": "<exact quote from essay>", "correction": "<improved replacement text in English>", "suggestion": "<specific explanation in Russian>" }
   ],
+  "work_plan": [
+    {
+      "area": "<Russian title of the skill to work on>",
+      "priority": "High",
+      "diagnosis": "<2-3 Russian sentences explaining the exact weakness in this ${taskLabel} answer>",
+      "why_it_matters": "<1-2 Russian sentences connecting this weakness to IELTS band descriptors>",
+      "practice_steps": ["<concrete action in Russian>", "<concrete action in Russian>", "<concrete action in Russian>"],
+      "success_check": "<how the student can check the next answer improved>",
+      "example_upgrade": { "before": "<exact quote from essay or short problem pattern>", "after": "<improved English version>" }
+    }
+  ],
   "corrected_intro": "<rewrite the first paragraph showing improvements>"
 }
 
@@ -99,7 +117,11 @@ Rules:
 - Be specific, cite exact phrases from the essay
 - "example" must be copied from the student's essay exactly so the UI can highlight it
 - "correction" must be a direct improved replacement for the example, not an explanation
-- Use category only from: task, coherence, vocabulary, grammar`;
+- Use category only from: task, coherence, vocabulary, grammar
+- Return 3-5 "work_plan" items, ordered by priority, focused on what the student should practice next for ${taskLabel}
+- For Task 1, work_plan must cover data selection/overview/comparisons when relevant
+- For Task 2, work_plan must cover argument development/position/paragraph logic when relevant
+- Each work_plan item must be practical: include drill-style actions the student can do before the next attempt`;
 
     const { text } = await generateText({
       model: openai("gpt-4o"),

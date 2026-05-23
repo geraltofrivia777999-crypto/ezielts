@@ -2,16 +2,24 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/queries", () => ({
-  checkDailyLimit: vi.fn(),
+  countUserAttemptsSince: vi.fn(),
   incrementUsage: vi.fn(),
   saveAttempt: vi.fn(),
+}));
+vi.mock("@/lib/supabase/access", () => ({
+  getActivePlanForUser: vi.fn(),
+  subscriptionRequiredResponse: () => new Response(
+    JSON.stringify({ error: "subscription_required" }),
+    { status: 403, headers: { "Content-Type": "application/json" } }
+  ),
 }));
 vi.mock("ai", () => ({ generateText: vi.fn() }));
 vi.mock("@ai-sdk/openai", () => ({ openai: vi.fn(() => "model-stub") }));
 
 import { POST } from "@/app/api/ai/writing/route";
 import { createClient } from "@/lib/supabase/server";
-import { checkDailyLimit, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { countUserAttemptsSince, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { getActivePlanForUser } from "@/lib/supabase/access";
 import { generateText } from "ai";
 import { createMockSupabaseClient, authedMock } from "@/__tests__/helpers/mock-supabase";
 import { makeEssay } from "@/__tests__/helpers/factories";
@@ -35,12 +43,13 @@ const VALID_AI_RESPONSE = {
 
 const validEssay = makeEssay(80); // safely above the 50-word floor
 
-function setupOk(opts: { user?: { id: string } | null; limit?: boolean } = {}) {
+function setupOk(opts: { user?: { id: string } | null; plan?: "free" | "pro_monthly" | "pro_quarterly"; weeklyCount?: number } = {}) {
   const sb = opts.user
     ? authedMock(opts.user.id)
     : createMockSupabaseClient();
   (createClient as Mock).mockResolvedValue(sb);
-  (checkDailyLimit as Mock).mockResolvedValue(opts.limit ?? true);
+  (getActivePlanForUser as Mock).mockResolvedValue(opts.plan ?? "pro_quarterly");
+  (countUserAttemptsSince as Mock).mockResolvedValue(opts.weeklyCount ?? 0);
   (generateText as Mock).mockResolvedValue({ text: JSON.stringify(VALID_AI_RESPONSE) });
   return sb;
 }
@@ -73,15 +82,15 @@ describe("POST /api/ai/writing", () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe("too_short");
-      expect(checkDailyLimit).not.toHaveBeenCalled();
+      expect(countUserAttemptsSince).not.toHaveBeenCalled();
       expect(generateText).not.toHaveBeenCalled();
       expect(incrementUsage).not.toHaveBeenCalled();
     });
   });
 
   describe("quota & ordering", () => {
-    it("returns 429 when daily limit is exhausted", async () => {
-      setupOk({ user: { id: "u1" }, limit: false });
+    it("returns 429 when the 1-month weekly limit is exhausted", async () => {
+      setupOk({ user: { id: "u1" }, plan: "pro_monthly", weeklyCount: 3 });
       const res = await POST(jsonRequest({ essay: validEssay, prompt: "p" }));
       expect(res.status).toBe(429);
       const body = await res.json();

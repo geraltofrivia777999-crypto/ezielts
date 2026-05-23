@@ -36,7 +36,7 @@ create table public.profiles (
 create table public.subscriptions (
   id                  uuid primary key default uuid_generate_v4(),
   user_id             uuid not null references public.profiles(id) on delete cascade,
-  plan                text not null check (plan in ('free','pro_monthly','pro_annual')) default 'free',
+  plan                text not null check (plan in ('free','pro_monthly','pro_quarterly','pro_annual')) default 'free',
   status              text not null check (status in ('active','cancelled','expired','trialing')) default 'active',
   freedompay_sub_id   text,                    -- FreedomPay subscription token
   trial_ends_at       timestamptz,

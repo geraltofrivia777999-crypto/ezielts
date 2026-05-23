@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -330,12 +330,15 @@ function AudioPlayer({
   }, []);
 
   useEffect(() => {
-    setAudioError(null);
-    setPlaying(false);
-    setCurrentTime(0);
-    setAudioDuration(durationProp);
-    setEnded(false);
-    setLoading(autoPlayNextRef.current);
+    const resetId = window.setTimeout(() => {
+      setAudioError(null);
+      setPlaying(false);
+      setCurrentTime(0);
+      setAudioDuration(durationProp);
+      setEnded(false);
+      setLoading(autoPlayNextRef.current);
+    }, 0);
+    return () => window.clearTimeout(resetId);
   }, [currentSource?.url, durationProp]);
 
   function seekTo(seconds: number) {
@@ -1756,6 +1759,7 @@ function QuestionItem({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 function ListeningTestPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const selectedTestId = searchParams.get("id");
   const [test, setTest] = useState<ListeningTest | null>(null);
@@ -1865,7 +1869,15 @@ function ListeningTestPageContent() {
     setAnswers((prev) => ({ ...prev, [qId]: value }));
   }, []);
 
-  const startSession = useCallback((nextSession: ListeningSession) => {
+  const startSession = useCallback(async (nextSession: ListeningSession) => {
+    if (userIdRef.current && test?.id !== "fallback") {
+      const sb = createClient();
+      const allowed = await checkDailyLimit(sb, userIdRef.current, "listening");
+      if (!allowed) {
+        router.push("/pricing");
+        return;
+      }
+    }
     setAnswers({});
     setRevealedAnswers(new Set());
     setAiStates({});
@@ -1875,7 +1887,7 @@ function ListeningTestPageContent() {
     setAudioEnded(false);
     setCurrentTime(0);
     setSession(nextSession);
-  }, []);
+  }, [router, test?.id]);
 
   const toggleRevealedAnswer = useCallback((qId: string) => {
     setRevealedAnswers((prev) => {

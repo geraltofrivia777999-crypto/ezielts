@@ -1,4 +1,5 @@
--- Free users get one scored test per calendar day for each IELTS skill.
+-- Free users may complete one scored test per calendar day in each IELTS skill
+-- separately: one Reading, one Listening, one Writing and one Speaking.
 -- Pro users stay unlimited through public.is_pro().
 
 create or replace function public.check_daily_limit(

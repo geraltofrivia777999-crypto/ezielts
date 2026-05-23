@@ -46,6 +46,18 @@ interface WritingFeedback {
   summary: string;
   strengths: string[];
   improvements: Array<{ issue: string; example: string; suggestion: string; category?: string; correction?: string }>;
+  work_plan?: Array<{
+    area: string;
+    priority: "High" | "Medium" | "Low" | string;
+    diagnosis: string;
+    why_it_matters: string;
+    practice_steps: string[];
+    success_check: string;
+    example_upgrade?: {
+      before?: string;
+      after?: string;
+    };
+  }>;
   corrected_intro?: string;
 }
 
@@ -110,6 +122,60 @@ function criterionForFeedbackCategory(fb: WritingFeedback, category: FeedbackCat
   return fb.criteria.grammatical_range;
 }
 
+function categoryLabel(category: FeedbackCategoryId) {
+  if (category === "task") return "Task response";
+  if (category === "coherence") return "Logic and structure";
+  if (category === "vocabulary") return "Vocabulary";
+  return "Grammar accuracy";
+}
+
+function priorityLabel(priority: string | undefined) {
+  const normalized = (priority ?? "").toLowerCase();
+  if (normalized.includes("high")) return "Высокий приоритет";
+  if (normalized.includes("low")) return "Низкий приоритет";
+  return "Средний приоритет";
+}
+
+function priorityClassName(priority: string | undefined) {
+  const normalized = (priority ?? "").toLowerCase();
+  if (normalized.includes("high")) return "bg-rose-50 text-rose-700 border-rose-200";
+  if (normalized.includes("low")) return "bg-slate-50 text-slate-700 border-slate-200";
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+function fallbackWorkPlan(fb: WritingFeedback): NonNullable<WritingFeedback["work_plan"]> {
+  const categories = FEEDBACK_CATEGORIES
+    .map((category) => ({
+      id: category.id,
+      band: criterionForFeedbackCategory(fb, category.id).band,
+      comment: criterionForFeedbackCategory(fb, category.id).comment,
+      improvements: fb.improvements.filter((imp) => classifyImprovement(imp) === category.id),
+    }))
+    .sort((a, b) => a.band - b.band)
+    .slice(0, 3);
+
+  return categories.map((category, index) => {
+    const firstImprovement = category.improvements[0];
+    const example = cleanFeedbackText(firstImprovement?.example);
+    const correction = firstImprovement ? suggestionAsCorrection(firstImprovement) : "";
+    return {
+      area: categoryLabel(category.id),
+      priority: index === 0 ? "High" : "Medium",
+      diagnosis: firstImprovement?.issue
+        ? `${firstImprovement.issue}. ${firstImprovement.suggestion}`
+        : category.comment,
+      why_it_matters: `Этот критерий сейчас на Band ${category.band.toFixed(1)}. Чтобы поднять Writing, нужно сделать этот навык стабильным в каждом ответе, а не только в отдельных предложениях.`,
+      practice_steps: [
+        "Перед следующим ответом выпишите 2-3 правила или структуры, которые хотите применить именно по этому критерию.",
+        "После написания перечитайте один абзац только с фокусом на этот навык и исправьте слабые места.",
+        "Сравните новую версию с примером Band 8+ и отметьте, что стало конкретнее, логичнее или точнее.",
+      ],
+      success_check: "В следующей попытке похожая ошибка не повторяется, а комментарий AI по этому критерию становится короче и конкретнее.",
+      example_upgrade: example || correction ? { before: example, after: correction } : undefined,
+    };
+  });
+}
+
 function suggestionAsCorrection(imp: WritingFeedback["improvements"][number]) {
   const correction = cleanFeedbackText(imp.correction);
   if (correction) return correction;
@@ -163,6 +229,86 @@ function HighlightedEssay({
   }
 
   return <p className="whitespace-pre-wrap leading-relaxed">{parts}</p>;
+}
+
+function WritingWorkPlan({ fb, taskLabel }: { fb: WritingFeedback; taskLabel: string }) {
+  const workPlan = (fb.work_plan?.length ? fb.work_plan : fallbackWorkPlan(fb)).slice(0, 5);
+
+  if (workPlan.length === 0) return null;
+
+  return (
+    <section className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-5 shadow-sm">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgb(var(--primary)/0.1)] text-[rgb(var(--primary))]">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-[rgb(var(--foreground))]">Над чем работать дальше</h3>
+              <p className="text-sm text-[rgb(var(--muted-foreground))]">Персональный план по Writing {taskLabel}</p>
+            </div>
+          </div>
+        </div>
+        <Badge variant="secondary" className="w-fit">Next attempt plan</Badge>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {workPlan.map((item, index) => {
+          const before = cleanFeedbackText(item.example_upgrade?.before);
+          const after = cleanFeedbackText(item.example_upgrade?.after);
+          return (
+            <article key={`${item.area}-${index}`} className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] p-5">
+              <div className="mb-4 flex items-start gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-[rgb(var(--primary))] shadow-sm">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-bold text-[rgb(var(--foreground))]">{item.area}</h4>
+                    <span className={cn("rounded-full border px-2 py-0.5 text-xs font-bold", priorityClassName(item.priority))}>
+                      {priorityLabel(item.priority)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[rgb(var(--muted-foreground))]">{item.diagnosis}</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white/70 p-4">
+                <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[rgb(var(--muted-foreground))]">Почему это важно</div>
+                <p className="text-sm leading-6 text-[rgb(var(--foreground))]">{item.why_it_matters}</p>
+              </div>
+
+              <div className="mt-4">
+                <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[rgb(var(--muted-foreground))]">Что сделать</div>
+                <ul className="flex flex-col gap-2.5">
+                  {item.practice_steps.slice(0, 4).map((step, stepIndex) => (
+                    <li key={`${step}-${stepIndex}`} className="flex gap-2.5 text-sm leading-6 text-[rgb(var(--foreground))]">
+                      <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {(before || after) && (
+                <div className="mt-4 grid gap-2 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-4">
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-[rgb(var(--muted-foreground))]">Как должно выглядеть</div>
+                  {before && <p className="text-sm leading-6 text-[rgb(var(--muted-foreground))] line-through decoration-2">{before}</p>}
+                  {after && <p className="text-sm font-medium leading-6 text-emerald-700">{after}</p>}
+                </div>
+              )}
+
+              <div className="mt-4 rounded-xl border border-dashed border-[rgb(var(--border))] p-4">
+                <div className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[rgb(var(--muted-foreground))]">Как проверить прогресс</div>
+                <p className="text-sm leading-6 text-[rgb(var(--foreground))]">{item.success_check}</p>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 type GeneratedTask1Visual =
@@ -905,6 +1051,8 @@ function WritingTestPageContent() {
             )}
           </div>
         )}
+
+        <WritingWorkPlan fb={fb} taskLabel={taskLabel} />
       </>
     );
   }
@@ -1124,6 +1272,16 @@ function WritingTestPageContent() {
     : null;
   const promptTextToShow = visiblePromptText(promptText, Boolean(generatedVisual));
   const task1Unavailable = mode === "full" && !task1 && !taskLoading;
+  const bottomGoesToTask2 = mode === "full" && activeTab === "task1";
+  const bottomActionDisabled = bottomGoesToTask2 ? task1Unavailable : submitDisabled;
+  const handleBottomAction = () => {
+    if (bottomGoesToTask2) {
+      setActiveTab("task2");
+      window.setTimeout(() => textareaRef.current?.focus(), 0);
+      return;
+    }
+    handleSubmit();
+  };
 
   // Word count color helpers for tab badges
   const wc1Color = wordCount1 >= (task1?.min_words ?? 150) ? "text-[rgb(var(--success))]" : "text-[rgb(var(--muted-foreground))]";
@@ -1312,9 +1470,9 @@ function WritingTestPageContent() {
                 </span>
               )}
             </div>
-            <Button size="sm" disabled={submitDisabled} onClick={handleSubmit} className="gap-1.5">
-              <Zap className="w-3.5 h-3.5" />
-              Получить AI Feedback
+            <Button size="sm" disabled={bottomActionDisabled} onClick={handleBottomAction} className="gap-1.5">
+              {bottomGoesToTask2 ? <ChevronRight className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
+              {bottomGoesToTask2 ? "Перейти к Task 2" : "Получить AI Feedback"}
             </Button>
           </div>
         </div>

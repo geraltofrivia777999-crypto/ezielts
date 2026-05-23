@@ -1,8 +1,9 @@
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createClient } from "@/lib/supabase/server";
-import { checkDailyLimit, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
-import { isProUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
+import { countUserAttemptsSince, incrementUsage, saveAttempt } from "@/lib/supabase/queries";
+import { getActivePlanForUser, subscriptionRequiredResponse } from "@/lib/supabase/access";
+import { getPlanEntitlements } from "@/lib/plans";
 import { clampBand } from "@/lib/utils";
 import { SPEAKING_MIN_AUDIO_BYTES, SPEAKING_MIN_TRANSCRIPT_WORDS } from "@/lib/api-constants";
 
@@ -31,19 +32,26 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!(await isProUser(sb, user.id))) {
+    const activePlan = await getActivePlanForUser(sb, user.id);
+    const entitlements = getPlanEntitlements(activePlan);
+    const weeklyLimit = entitlements.speakingSessionsPerWeek;
+
+    if (weeklyLimit === 0) {
       return subscriptionRequiredResponse();
     }
 
-    if (user) {
-      const allowed = await checkDailyLimit(sb, user.id, "speaking");
-      if (!allowed) {
+    if (weeklyLimit !== null) {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const used = await countUserAttemptsSince(sb, user.id, "speaking", since);
+      if (used >= weeklyLimit) {
         return new Response(
-          JSON.stringify({ error: "limit_reached", message: "AI Speaking доступен только по подписке Pro." }),
+          JSON.stringify({
+            error: "limit_reached",
+            message: `На тарифе 1 месяц доступно ${weeklyLimit} AI Speaking сессии в неделю. Обновите тариф, чтобы получить безлимит.`,
+          }),
           { status: 429, headers: { "Content-Type": "application/json" } }
         );
       }
-      // incrementUsage deferred to after successful AI evaluation
     }
 
     // Validate audio blob (must be > SPEAKING_MIN_AUDIO_BYTES to be real recording)
@@ -143,6 +151,50 @@ Return ONLY valid JSON in this exact schema:
     "grammatical_range": "<2 sentences in Russian with concrete reason for GRA score>",
     "pronunciation": "<2 sentences in Russian with concrete reason for PR score>"
   },
+  "detailed_feedback": {
+    "fluency": {
+      "diagnosis": "<3-4 Russian sentences with precise fluency diagnosis: speed, pauses, coherence, answer development>",
+      "evidence": ["<specific Russian evidence point 1 with exact quote if possible>", "<specific evidence point 2>", "<specific evidence point 3>"],
+      "why_it_matters": "<Russian explanation of how this affects IELTS Fluency & Coherence>",
+      "action_plan": ["<action step 1>", "<action step 2>", "<action step 3>"],
+      "practice_drill": "<one concrete daily drill in Russian>",
+      "target_band_hint": "<Russian note explaining what changes are needed to gain 0.5-1 band>"
+    },
+    "vocabulary": {
+      "diagnosis": "<3-4 Russian sentences with precise lexical diagnosis: range, repetition, collocations, paraphrasing>",
+      "evidence": ["<specific evidence point 1>", "<specific evidence point 2>", "<specific evidence point 3>"],
+      "why_it_matters": "<Russian explanation of how this affects IELTS Lexical Resource>",
+      "action_plan": ["<action step 1>", "<action step 2>", "<action step 3>"],
+      "practice_drill": "<one concrete daily drill in Russian>",
+      "target_band_hint": "<Russian note explaining what changes are needed to gain 0.5-1 band>"
+    },
+    "grammar": {
+      "diagnosis": "<3-4 Russian sentences with precise grammar diagnosis: accuracy, range, sentence control>",
+      "evidence": ["<specific evidence point 1>", "<specific evidence point 2>", "<specific evidence point 3>"],
+      "why_it_matters": "<Russian explanation of how this affects IELTS Grammatical Range & Accuracy>",
+      "action_plan": ["<action step 1>", "<action step 2>", "<action step 3>"],
+      "practice_drill": "<one concrete daily drill in Russian>",
+      "target_band_hint": "<Russian note explaining what changes are needed to gain 0.5-1 band>"
+    },
+    "pronunciation": {
+      "diagnosis": "<3-4 Russian sentences with pronunciation diagnosis inferred from transcript and recognition quality>",
+      "evidence": ["<specific word/phrase risk 1>", "<specific word/phrase risk 2>", "<specific rhythm/stress note 3>"],
+      "why_it_matters": "<Russian explanation of how this affects IELTS Pronunciation>",
+      "action_plan": ["<action step 1>", "<action step 2>", "<action step 3>"],
+      "practice_drill": "<one concrete daily drill in Russian>",
+      "target_band_hint": "<Russian note explaining what changes are needed to gain 0.5-1 band>"
+    }
+  },
+  "part_feedback": [
+    {
+      "part": <number>,
+      "title": "<short Russian/English title for this IELTS part/topic>",
+      "summary": "<2-3 Russian sentences about performance in this part>",
+      "strengths": ["<strength 1>", "<strength 2>"],
+      "issues": ["<issue 1>", "<issue 2>"],
+      "next_steps": ["<next step 1>", "<next step 2>"]
+    }
+  ],
   "strengths": ["<Russian strength 1>", "<Russian strength 2>"],
   "improvements": [
     { "category": "grammar", "issue": "<short Russian label>", "example": "<exact quote from transcript>", "correction": "<improved replacement in English>", "suggestion": "<specific explanation in Russian>", "severity": "major", "from_band": 4, "to_band": 6 },
@@ -158,6 +210,10 @@ Rules:
 - For every improvement, "example" must be copied exactly from the transcript when possible
 - "correction" must be a direct replacement or pronunciation hint, not a long explanation
 - Use category only from: fluency, vocabulary, grammar, pronunciation
+- Return at least 6 improvements total and include at least one item for each category: fluency, vocabulary, grammar, pronunciation
+- Each detailed_feedback category must include at least 3 evidence points and 3 action_plan items
+- If Part is "all", part_feedback must include three items with part 1, part 2 and part 3; otherwise include the current numeric Part ${part}
+- Write explanations, diagnosis, action_plan, practice_drill and next_steps in Russian; keep examples/corrections/model_phrases in English
 - Band scores must be multiples of 0.5
 - If transcript is very short (< 30 words), reflect that in lower fluency band
 - Pronunciation: infer from spelling patterns and word choice complexity`;

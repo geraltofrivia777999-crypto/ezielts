@@ -8,9 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getPlanDisplayName } from "@/lib/plans";
 import {
-  ChevronLeft,
-  Settings as SettingsIcon,
   User,
   Mail,
   Lock,
@@ -202,12 +201,12 @@ export default function SettingsPage() {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-[rgb(var(--foreground))]">
-                  {plan === "free" ? "Бесплатный план" : plan === "pro_monthly" ? "Pro Monthly" : "Pro Annual"}
+                  {getPlanDisplayName(plan)}
                 </span>
                 <Badge variant={plan === "free" ? "secondary" : "default"}>{plan}</Badge>
               </div>
               <p className="text-xs text-[rgb(var(--muted-foreground))] mt-0.5">
-                {plan === "free" ? "Ограниченный доступ к функциям" : "Полный доступ ко всему контенту"}
+                {plan === "free" ? "Ограниченный доступ к функциям" : "Доступ по выбранному тарифу"}
               </p>
             </div>
             {plan === "free" && (

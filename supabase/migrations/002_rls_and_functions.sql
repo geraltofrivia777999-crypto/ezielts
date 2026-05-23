@@ -9,7 +9,7 @@ returns boolean language sql security definer stable as $$
   select exists (
     select 1 from public.subscriptions
     where user_id = uid
-      and plan in ('pro_monthly', 'pro_annual')
+      and plan in ('pro_monthly', 'pro_quarterly', 'pro_annual')
       and status in ('active', 'trialing')
       and (current_period_end is null or current_period_end > now())
   );

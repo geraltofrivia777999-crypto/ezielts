@@ -18,6 +18,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { hasActiveProAccess } from "@/lib/supabase/access";
+import { parseSpeakingTopic } from "@/lib/test-mapping/content-filter";
 import { cn } from "@/lib/utils";
 import type { ContentType, Database } from "@/lib/supabase/types";
 
@@ -36,11 +38,43 @@ type CatalogItem = {
   meta: string;
   official: boolean;
   href: string;
+  attemptId?: string;
+};
+
+type SpeakingCatalogRow = {
+  id: string;
+  topic_text?: string | null;
+  source?: string | null;
+  part?: number | null;
+};
+
+type ReadingCatalogRow = {
+  id: string;
+  title?: string | null;
+  category?: string | null;
+  source?: string | null;
+  reading_sections?: unknown[] | null;
+};
+
+type ListeningCatalogRow = {
+  id: string;
+  title?: string | null;
+  source?: string | null;
+  listening_question_groups?: unknown[] | null;
+};
+
+type WritingCatalogRow = {
+  id: string;
+  title?: string | null;
+  source?: string | null;
+  task_type?: string | null;
+  exam_type?: string | null;
+  min_words?: number | null;
 };
 
 type Summary = {
   isPro: boolean;
-  dailyUsed: number;
+  dailyUsage: Record<Skill, number>;
 };
 
 const SKILLS: Array<{
@@ -89,6 +123,59 @@ function bestAttempt(attempts: Attempt[], type: Skill, id: string) {
       return bTime - aTime;
     });
   return matches[0] ?? null;
+}
+
+function compactTitle(raw: string | null | undefined, fallback: string) {
+  const parsed = parseSpeakingTopic(raw);
+  const title = (parsed.text || raw || fallback).replace(/\s+/g, " ").trim();
+  return title.length > 64 ? `${title.slice(0, 64)}...` : title;
+}
+
+function buildSpeakingCatalogItems(rows: SpeakingCatalogRow[]): CatalogItem[] {
+  const byPart = {
+    1: rows.filter((row) => Number(row.part) === 1),
+    2: rows.filter((row) => Number(row.part) === 2),
+    3: rows.filter((row) => Number(row.part) === 3),
+  };
+  const groupCount = Math.max(byPart[1].length, byPart[2].length, byPart[3].length);
+  const items: CatalogItem[] = [];
+
+  for (let i = 0; i < groupCount; i += 1) {
+    const p1 = byPart[1][i];
+    const p2 = byPart[2][i];
+    const p3 = byPart[3][i];
+    const group = [p1, p2, p3].filter((row): row is SpeakingCatalogRow => Boolean(row));
+    for (const row of group) {
+      const part = Number(row.part) || 1;
+      items.push({
+        id: row.id,
+        type: "speaking",
+        title: part === 2 ? compactTitle(row.topic_text, "Speaking Part 2") : `${compactTitle(row.topic_text, `Speaking Part ${part}`)} — Part ${part}`,
+        subtitle: `Part ${part}`,
+        source: row.source || "IELTS",
+        meta: "устно",
+        official: isOfficial(row.source ?? null, row.topic_text ?? null),
+        href: `/tests/speaking?part=${part}&id=${row.id}&start=1`,
+      });
+    }
+
+    if (p1 && p2 && p3) {
+      const source = p1.source || p2.source || p3.source || "IELTS";
+      items.push({
+        id: `mock-${p1.id}-${p2.id}-${p3.id}`,
+        type: "speaking",
+        title: `Mock test ${i + 1}`,
+        subtitle: "Parts 1–3",
+        source,
+        meta: "mock",
+        official: group.some((row) => isOfficial(row.source ?? null, row.topic_text ?? null)),
+        href: `/tests/speaking?mock=1&p1=${p1.id}&p2=${p2.id}&p3=${p3.id}`,
+        attemptId: p2.id,
+      });
+    }
+  }
+
+  return items;
 }
 
 function TestCard({
@@ -143,9 +230,11 @@ function TestCard({
           </span>
         </div>
         {locked ? (
-          <Button size="sm" variant="outline" disabled>
-            <Lock className="h-3.5 w-3.5" />
-            Лимит
+          <Button size="sm" variant="outline" asChild>
+            <Link href="/pricing">
+              <Lock className="h-3.5 w-3.5" />
+              Купить Pro
+            </Link>
           </Button>
         ) : (
           <Button size="sm" asChild>
@@ -173,14 +262,10 @@ export function TestsCatalogClient() {
     speaking: [],
   });
   const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [summary, setSummary] = useState<Summary>({ isPro: false, dailyUsed: 0 });
-
-  useEffect(() => {
-    const skillFromUrl = searchParams.get("skill") as Skill | null;
-    if (skillFromUrl && SKILLS.some((skill) => skill.key === skillFromUrl)) {
-      setActiveSkill(skillFromUrl);
-    }
-  }, [searchParams]);
+  const [summary, setSummary] = useState<Summary>({
+    isPro: false,
+    dailyUsage: { reading: 0, listening: 0, writing: 0, speaking: 0 },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -205,30 +290,30 @@ export function TestsCatalogClient() {
           writingRes,
           speakingRes,
         ] = await Promise.all([
-          (sb as any).from("v_user_summary").select("is_pro, plan, subscription_status").eq("id", user.id).single(),
-          (sb as any).from("user_daily_usage").select("reading_count, listening_count, writing_count, speaking_count").eq("user_id", user.id).eq("date", today).maybeSingle(),
-          (sb as any)
+          sb.from("v_user_summary").select("is_pro, plan, subscription_status, current_period_end").eq("id", user.id).single(),
+          sb.from("user_daily_usage").select("reading_count, listening_count, writing_count, speaking_count").eq("user_id", user.id).eq("date", today).maybeSingle(),
+          sb
             .from("user_test_attempts")
             .select("content_type, content_id, band_score, raw_score, total_questions, completed_at")
             .eq("user_id", user.id)
             .order("completed_at", { ascending: false })
             .limit(1000),
-          (sb as any)
+          sb
             .from("reading_tests")
             .select("id, title, source, category, difficulty, created_at, reading_sections(id, part_number, reading_question_groups(id, reading_questions(id)))")
             .order("created_at", { ascending: true })
             .limit(160),
-          (sb as any)
+          sb
             .from("listening_tests")
             .select("id, title, source, section, audio_duration, created_at, listening_question_groups(id, section_number, listening_questions(id))")
             .order("created_at", { ascending: true })
             .limit(160),
-          (sb as any)
+          sb
             .from("writing_tasks")
             .select("id, title:prompt_text, source, task_type, exam_type, min_words, created_at")
             .order("created_at", { ascending: true })
             .limit(160),
-          (sb as any)
+          sb
             .from("speaking_topics")
             .select("id, topic_text, source, part, created_at")
             .order("created_at", { ascending: true })
@@ -237,22 +322,24 @@ export function TestsCatalogClient() {
 
         if (cancelled) return;
 
-        const usage = usageRes.data ?? {};
-        const dailyUsed =
-          (usage.reading_count ?? 0) +
-          (usage.listening_count ?? 0) +
-          (usage.writing_count ?? 0) +
-          (usage.speaking_count ?? 0);
-        const summaryRow = summaryRes.data ?? {};
-        const isPro = Boolean(summaryRow.is_pro)
-          || (summaryRow.plan && summaryRow.plan !== "free" && summaryRow.subscription_status === "active");
+        const usage = (usageRes.data ?? {}) as Partial<Database["public"]["Tables"]["user_daily_usage"]["Row"]>;
+        const summaryRow = (summaryRes.data ?? {}) as Partial<Database["public"]["Views"]["v_user_summary"]["Row"]>;
+        const isPro = hasActiveProAccess(summaryRow);
         const loadedAttempts = (attemptsRes.data ?? []) as Attempt[];
-        const readingRows = (readingRes.data ?? []) as Array<Record<string, any>>;
-        const listeningRows = (listeningRes.data ?? []) as Array<Record<string, any>>;
-        const writingRows = (writingRes.data ?? []) as Array<Record<string, any>>;
-        const speakingRows = (speakingRes.data ?? []) as Array<Record<string, any>>;
+        const readingRows = (readingRes.data ?? []) as unknown as ReadingCatalogRow[];
+        const listeningRows = (listeningRes.data ?? []) as unknown as ListeningCatalogRow[];
+        const writingRows = (writingRes.data ?? []) as unknown as WritingCatalogRow[];
+        const speakingRows = (speakingRes.data ?? []) as SpeakingCatalogRow[];
 
-        setSummary({ isPro, dailyUsed });
+        setSummary({
+          isPro,
+          dailyUsage: {
+            reading: usage.reading_count ?? 0,
+            listening: usage.listening_count ?? 0,
+            writing: usage.writing_count ?? 0,
+            speaking: usage.speaking_count ?? 0,
+          },
+        });
         setAttempts(loadedAttempts);
         setItems({
           reading: readingRows.map((row) => {
@@ -265,17 +352,18 @@ export function TestsCatalogClient() {
               subtitle: row.category || "Academic",
               source: row.source || "IELTS",
               meta: `${qCount || 40} вопр.`,
-              official: isOfficial(row.source, row.title),
+              official: isOfficial(row.source ?? null, row.title ?? null),
               href: `/tests/reading?id=${row.id}`,
             };
           }),
           listening: listeningRows.map((row) => {
             const groups = Array.isArray(row.listening_question_groups) ? row.listening_question_groups : [];
-            const qCount = groups.reduce((sum, group) => {
-              const questions = Array.isArray(group.listening_questions) ? group.listening_questions : [];
+            const qCount = groups.reduce<number>((sum, group) => {
+              const record = group as { listening_questions?: unknown[]; section_number?: number | null };
+              const questions = Array.isArray(record.listening_questions) ? record.listening_questions : [];
               return sum + questions.length;
             }, 0);
-            const sections = new Set(groups.map((group) => group.section_number).filter(Boolean)).size || 4;
+            const sections = new Set(groups.map((group) => (group as { section_number?: number | null }).section_number).filter(Boolean)).size || 4;
             return {
               id: row.id,
               type: "listening",
@@ -283,7 +371,7 @@ export function TestsCatalogClient() {
               subtitle: `${sections} секции`,
               source: row.source || "IELTS",
               meta: `${qCount || 40} вопр.`,
-              official: isOfficial(row.source, row.title),
+              official: isOfficial(row.source ?? null, row.title ?? null),
               href: `/tests/listening?id=${row.id}`,
             };
           }),
@@ -296,23 +384,11 @@ export function TestsCatalogClient() {
               subtitle: `${String(row.task_type || "task").toUpperCase()} · ${row.exam_type || "Academic"}`,
               source: row.source || "IELTS",
               meta: `${row.min_words ?? 250}+ слов`,
-              official: isOfficial(row.source, title),
+              official: isOfficial(row.source ?? null, title),
               href: `/tests/writing?id=${row.id}`,
             };
           }),
-          speaking: speakingRows.map((row) => {
-            const title = String(row.topic_text || "Speaking topic").replace(/\s+/g, " ").trim();
-            return {
-              id: row.id,
-              type: "speaking",
-              title: title.length > 64 ? `${title.slice(0, 64)}...` : title,
-              subtitle: `Part ${row.part || 1}`,
-              source: row.source || "IELTS",
-              meta: "устно",
-              official: isOfficial(row.source, title),
-              href: `/tests/speaking?part=${row.part || 1}&id=${row.id}`,
-            };
-          }),
+          speaking: buildSpeakingCatalogItems(speakingRows),
         });
       } finally {
         if (!cancelled) setLoading(false);
@@ -329,11 +405,15 @@ export function TestsCatalogClient() {
   }, [activeSkill, items, officialOnly]);
 
   const completedCount = (items[activeSkill] ?? []).filter((item) => bestAttempt(attempts, item.type, item.id)).length;
-  const freeLocked = !summary.isPro && summary.dailyUsed >= 1;
+  const activeSkillUsed = summary.dailyUsage[activeSkill] ?? 0;
+  const freeLocked = !summary.isPro && activeSkillUsed >= 1;
   const currentSkill = SKILLS.find((skill) => skill.key === activeSkill) ?? SKILLS[0];
 
   function startRandom() {
-    if (freeLocked) return;
+    if (freeLocked) {
+      router.push("/pricing");
+      return;
+    }
     const uncompleted = activeItems.filter((item) => !bestAttempt(attempts, item.type, item.id));
     const pool = uncompleted.length > 0 ? uncompleted : activeItems;
     if (pool.length === 0) return;
@@ -387,10 +467,10 @@ export function TestsCatalogClient() {
           >
             <div>
               <div className="font-semibold text-[rgb(var(--foreground))]">
-                Free: 1 тест в день
+                Free: 1 тест в день на каждый раздел
               </div>
               <p className="text-sm text-[rgb(var(--muted-foreground))]">
-                Сегодня использовано: {summary.dailyUsed}/1. У Pro все тесты открыты без дневного лимита.
+                {currentSkill.shortLabel}: сегодня использовано {activeSkillUsed}/1. У Pro все тесты открыты без дневного лимита.
               </p>
             </div>
             <Button asChild variant={freeLocked ? "default" : "outline"}>
@@ -450,9 +530,9 @@ export function TestsCatalogClient() {
                   </p>
                 </div>
               </div>
-              <Button onClick={startRandom} disabled={loading || activeItems.length === 0 || freeLocked}>
-                <Shuffle className="h-4 w-4" />
-                Начать
+              <Button onClick={startRandom} disabled={loading || activeItems.length === 0}>
+                {freeLocked ? <Crown className="h-4 w-4" /> : <Shuffle className="h-4 w-4" />}
+                {freeLocked ? "Открыть Pro" : "Начать"}
               </Button>
             </div>
           </div>
@@ -466,9 +546,9 @@ export function TestsCatalogClient() {
               Для этого фильтра тестов пока нет.
             </div>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className={cn("grid gap-3 md:grid-cols-2", activeSkill === "speaking" ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
               {activeItems.map((item) => {
-                const attempt = bestAttempt(attempts, item.type, item.id);
+                const attempt = bestAttempt(attempts, item.type, item.attemptId ?? item.id);
                 return (
                   <TestCard
                     key={`${item.type}-${item.id}`}

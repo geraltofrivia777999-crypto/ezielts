@@ -1,11 +1,11 @@
 "use client";
 
 import { AppShell } from "@/components/layout/app-shell";
-import { Button } from "@/components/ui/button";
+import { ProofSections } from "@/components/marketing/proof-sections";
 import { cn } from "@/lib/utils";
 import {
-  Users, User, CheckCircle2, Play,
-  MessageCircle, Star, Quote,
+  Users, UserCog, CheckCircle2, Play,
+  MessageCircle,
 } from "lucide-react";
 
 const BENEFITS = [
@@ -19,73 +19,84 @@ const BENEFITS = [
 
 const PLANS = [
   {
-    name: "Групповое",
-    description: "Занятия в мини-группах до 6 человек",
-    price: "45 000",
-    period: "тг/мес",
+    name: "Групповой",
+    description: "Мини-группы 6-8 человек",
+    price: "220 000 ₸",
+    period: "за весь курс",
     icon: Users,
-    color: "bg-blue-500",
-    lightBg: "bg-blue-50",
-    lightColor: "text-blue-600",
-    features: [
-      "3 занятия в неделю по 1.5 часа",
-      "Группа до 6 человек",
-      "Домашние задания с проверкой",
-      "Mock-тесты каждую неделю",
-      "Доступ к EZielts Pro",
-      "Сертификат по окончании",
+    badge: "Популярный",
+    badgeClassName: "bg-[rgb(var(--primary))] text-white",
+    borderClassName: "border-[rgb(var(--primary))] ring-1 ring-[rgb(var(--primary)/0.22)]",
+    iconClassName: "bg-[rgb(var(--primary)/0.1)] text-[rgb(var(--primary))]",
+    checkClassName: "text-[rgb(var(--success))]",
+    sections: [
+      {
+        title: "ФОРМАТ",
+        items: [
+          "3 урока в неделю по 1.5 часа",
+          "Speaking Club 2 раза/нед с носителем из США",
+          "Mock-тесты каждую субботу на AI-платформе",
+          "Живые уроки в Zoom — не запись",
+        ],
+      },
+      {
+        title: "ПРЕПОДАВАТЕЛИ",
+        items: [
+          "IELTS 7.5+ и опыт от 3 лет",
+          "Разбор ошибок напрямую с учителем",
+          "Фокус на ваши слабые стороны",
+        ],
+      },
+      {
+        title: "AI-ПЛАТФОРМА",
+        checkClassName: "text-[rgb(var(--primary))]",
+        items: [
+          "Бесплатный доступ на всё время курса",
+          "100+ Mock-тестов с AI-проверкой",
+          "AI отслеживает прогресс",
+          "Материалы и домашние задания",
+        ],
+      },
+      {
+        title: "ПОДДЕРЖКА",
+        items: [
+          "Личный ментор до экзамена",
+          "Пробные тесты с разбором ошибок",
+        ],
+      },
     ],
-    popular: false,
   },
   {
     name: "Индивидуальное",
-    description: "Персональные занятия 1 на 1 с преподавателем",
-    price: "90 000",
-    period: "тг/мес",
-    icon: User,
-    color: "bg-[rgb(var(--primary))]",
-    lightBg: "bg-violet-50",
-    lightColor: "text-[rgb(var(--primary))]",
-    features: [
-      "Гибкий график занятий",
-      "Полностью персональная программа",
-      "Фокус на ваших слабых местах",
-      "Mock-тесты с детальным разбором",
-      "Доступ к EZielts Pro",
-      "Гарантия улучшения на 1.0+ балл",
+    description: "Персональный преподаватель 1-on-1",
+    price: "420 000 ₸",
+    period: "за весь курс",
+    icon: UserCog,
+    badge: "Макс. результат",
+    badgeClassName: "bg-amber-50 text-amber-700 border border-amber-200",
+    borderClassName: "border-amber-200",
+    iconClassName: "bg-amber-50 text-amber-700",
+    checkClassName: "text-amber-600",
+    sections: [
+      {
+        title: "ВСЁ ИЗ ГРУППОВОГО, ПЛЮС",
+        items: [
+          "Персональный преподаватель только для вас",
+          "Гибкое расписание — вы выбираете время",
+          "Программа под ваш текущий балл",
+          "100% внимания на ваши ошибки",
+          "Интенсивный Speaking 1-on-1",
+          "WhatsApp 24/7 с преподавателем",
+        ],
+      },
+      {
+        title: "ГАРАНТИЯ",
+        items: [
+          "Гарантия +1.5 band за 3 месяца",
+          "Mock-экзамены с детальным разбором",
+        ],
+      },
     ],
-    popular: true,
-  },
-];
-
-const REVIEWS = [
-  {
-    name: "Айгерим К.",
-    score: "5.5 → 7.0",
-    text: "За 2 месяца подняла балл с 5.5 до 7.0! Преподаватель объяснил все стратегии для Reading и Listening. Writing подтянули благодаря еженедельным эссе с разбором каждой ошибки.",
-    avatar: "А",
-    color: "bg-pink-100 text-pink-600",
-  },
-  {
-    name: "Тимур М.",
-    score: "6.0 → 7.5",
-    text: "Групповые занятия оказались очень эффективными. Конкуренция в группе мотивирует, а преподаватель уделяет внимание каждому. Speaking Part 2 перестал быть проблемой после mock-интервью.",
-    avatar: "Т",
-    color: "bg-blue-100 text-blue-600",
-  },
-  {
-    name: "Дана С.",
-    score: "6.5 → 8.0",
-    text: "Индивидуальные занятия — лучшее решение. Программу подстроили полностью под меня, сфокусировались на Writing Task 2 и Speaking. Результат превзошёл ожидания!",
-    avatar: "Д",
-    color: "bg-emerald-100 text-emerald-600",
-  },
-  {
-    name: "Арман Б.",
-    score: "5.0 → 6.5",
-    text: "Начинал почти с нуля. За 3 месяца группового обучения набрал нужный балл для поступления. Очень помогли mock-тесты — на реальном экзамене чувствовал себя уверенно.",
-    avatar: "А",
-    color: "bg-amber-100 text-amber-600",
   },
 ];
 
@@ -121,43 +132,46 @@ export default function LivePage() {
         </div>
 
         {/* Pricing */}
-        <div className="grid sm:grid-cols-2 gap-5">
+        <div className="grid gap-5 lg:grid-cols-2">
           {PLANS.map((plan) => (
             <div
               key={plan.name}
               className={cn(
-                "relative bg-white rounded-2xl border p-6 flex flex-col shadow-sm",
-                plan.popular
-                  ? "border-[rgb(var(--primary))] ring-1 ring-[rgb(var(--primary)/0.2)]"
-                  : "border-[rgb(var(--border))]"
+                "relative flex flex-col rounded-2xl border bg-white p-6 shadow-sm transition-shadow hover:shadow-md sm:p-7",
+                plan.borderClassName
               )}
             >
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[rgb(var(--primary))] text-white text-xs font-semibold px-3 py-1 rounded-full">
-                  Популярный
-                </div>
-              )}
+              <div className={cn("absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-4 py-1 text-xs font-bold shadow-sm", plan.badgeClassName)}>
+                {plan.badge}
+              </div>
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center", plan.lightBg)}>
-                  <plan.icon className={cn("w-5 h-5", plan.lightColor)} />
+              <div className="mb-5 flex items-center gap-4">
+                <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl", plan.iconClassName)}>
+                  <plan.icon className="h-6 w-6" />
                 </div>
                 <div>
-                  <div className="font-semibold text-[rgb(var(--foreground))]">{plan.name}</div>
-                  <div className="text-xs text-[rgb(var(--muted-foreground))]">{plan.description}</div>
+                  <div className="text-xl font-bold tracking-normal text-[rgb(var(--foreground))]">{plan.name}</div>
+                  <div className="text-sm text-[rgb(var(--muted-foreground))]">{plan.description}</div>
                 </div>
               </div>
 
-              <div className="flex items-baseline gap-1 mb-5">
-                <span className="text-3xl font-bold text-[rgb(var(--foreground))]">{plan.price}</span>
-                <span className="text-sm text-[rgb(var(--muted-foreground))]">{plan.period}</span>
+              <div className="mb-6 rounded-2xl bg-[rgb(var(--surface-elevated))] p-5">
+                <div className="text-4xl font-black tracking-normal text-[rgb(var(--foreground))]">{plan.price}</div>
+                <div className="mt-2 text-sm font-semibold text-[rgb(var(--muted-foreground))]">{plan.period}</div>
               </div>
 
-              <div className="flex flex-col gap-2.5 mb-6 flex-1">
-                {plan.features.map((f) => (
-                  <div key={f} className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[rgb(var(--success))] shrink-0 mt-0.5" />
-                    <span className="text-sm text-[rgb(var(--foreground))]">{f}</span>
+              <div className="flex flex-1 flex-col gap-5">
+                {plan.sections.map((section, sectionIndex) => (
+                  <div key={section.title} className={cn(sectionIndex > 0 && "border-t border-[rgb(var(--border))] pt-5")}>
+                    <div className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-[rgb(var(--muted-foreground))]">{section.title}</div>
+                    <div className="flex flex-col gap-3">
+                      {section.items.map((item) => (
+                        <div key={item} className="flex items-start gap-2.5">
+                          <CheckCircle2 className={cn("mt-0.5 h-4 w-4 shrink-0", section.checkClassName ?? plan.checkClassName)} />
+                          <span className="text-sm font-medium leading-6 text-[rgb(var(--foreground))]">{item}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -166,15 +180,10 @@ export default function LivePage() {
                 href={WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cn(
-                  "flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-colors",
-                  plan.popular
-                    ? "bg-[rgb(var(--primary))] text-white hover:bg-[rgb(var(--primary)/0.9)]"
-                    : "bg-green-500 text-white hover:bg-green-600"
-                )}
+                className="mt-7 flex items-center justify-center gap-2 rounded-xl bg-[#22B36A] px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#1EA05F]"
               >
-                <MessageCircle className="w-4 h-4" />
-                Записаться в WhatsApp
+                <MessageCircle className="h-4 w-4" />
+                Записаться
               </a>
             </div>
           ))}
@@ -191,41 +200,7 @@ export default function LivePage() {
           </div>
         </div>
 
-        {/* Reviews */}
-        <div>
-          <h2 className="font-semibold text-lg text-[rgb(var(--foreground))] mb-4">Отзывы наших студентов</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {REVIEWS.map((r) => (
-              <div
-                key={r.name}
-                className="bg-white rounded-2xl border border-[rgb(var(--border))] p-5 shadow-sm flex flex-col gap-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm", r.color)}>
-                    {r.avatar}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-sm text-[rgb(var(--foreground))]">{r.name}</div>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-emerald-50 text-emerald-600 text-xs font-bold px-2.5 py-1 rounded-full">
-                    {r.score}
-                  </div>
-                </div>
-                <div className="relative">
-                  <Quote className="w-4 h-4 text-[rgb(var(--muted))] absolute -top-0.5 -left-0.5 opacity-40" />
-                  <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed pl-4">
-                    {r.text}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ProofSections />
 
         {/* Bottom CTA */}
         <div className="bg-gradient-to-r from-[rgb(var(--primary))] to-violet-500 rounded-2xl p-8 text-center text-white">

@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react";
+import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -605,6 +605,7 @@ function PassageText({ text }: { text: string }) {
 // ─── Reading Test page ──────────────────────────────────────────────────────
 
 function ReadingTestPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const selectedTestId = searchParams.get("id");
   const [test, setTest] = useState<ReadingTest | null>(null);
@@ -751,7 +752,15 @@ function ReadingTestPageContent() {
     setAnswers((prev) => ({ ...prev, [qId]: value }));
   }
 
-  function startSession(nextSession: ReadingSession) {
+  async function startSession(nextSession: ReadingSession) {
+    if (userIdRef.current && test?.id !== "fallback") {
+      const sb = createClient();
+      const allowed = await checkDailyLimit(sb, userIdRef.current, "reading");
+      if (!allowed) {
+        router.push("/pricing");
+        return;
+      }
+    }
     setSession(nextSession);
     setCurrentPart(nextSession.kind === "passage" ? nextSession.partNumber : 1);
     setAnswers({});

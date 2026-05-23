@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getUserSummary, getBandHistory, getUserAttempts } from "@/lib/supabase/queries";
+import { canUseProgressTracker } from "@/lib/supabase/access";
 import type { Database } from "@/lib/supabase/types";
 import { AppShell } from "@/components/layout/app-shell";
 import { OverviewTab } from "./_components/overview-tab";
@@ -112,8 +113,8 @@ function ProgressPaywall() {
             </div>
             <h1 className="text-2xl font-bold text-[rgb(var(--foreground))]">Прогресс доступен по подписке</h1>
             <p className="mt-2 text-sm leading-6 text-[rgb(var(--muted-foreground))]">
-              На бесплатном тарифе статистика скрыта. Купите Pro, чтобы видеть графики, историю попыток,
-              слабые места и динамику по каждому навыку.
+              Прогресс-трекер доступен с тарифа 3 месяца. Обновите подписку, чтобы видеть графики,
+              историю попыток, слабые места и динамику по каждому навыку.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Button asChild className="flex-1">
@@ -151,6 +152,7 @@ export default function ProgressPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [allAttempts, setAllAttempts] = useState<Attempt[]>([]);
   const [allBandHistory, setAllBandHistory] = useState<BandHistoryRow[]>([]);
+  const [nowTs, setNowTs] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -171,6 +173,7 @@ export default function ProgressPage() {
       } catch (err) {
         console.error("[progress]", err);
       } finally {
+        setNowTs(Date.now());
         setLoading(false);
       }
     }
@@ -182,9 +185,9 @@ export default function ProgressPage() {
   const bandHistory = useMemo(() => {
     const p = PERIODS.find((pp) => pp.id === period);
     if (!p?.days) return allBandHistory;
-    const cutoff = Date.now() - p.days * 24 * 3600 * 1000;
+    const cutoff = nowTs - p.days * 24 * 3600 * 1000;
     return allBandHistory.filter((r) => new Date(r.attempt_date).getTime() >= cutoff);
-  }, [allBandHistory, period]);
+  }, [allBandHistory, nowTs, period]);
 
   // Group attempts by skill
   const attemptsBySkill = useMemo(() => {
@@ -201,7 +204,7 @@ export default function ProgressPage() {
     return (Object.keys(SKILL_META) as ContentType[]).map((key) => {
       const currentBand = (summary?.[`band_${key}` as keyof Summary] as number | null) ?? 0;
       const skillHistory = allBandHistory.filter((r) => r.content_type === key);
-      const cutoff14 = Date.now() - 14 * 24 * 3600 * 1000;
+      const cutoff14 = nowTs - 14 * 24 * 3600 * 1000;
       const before14 = skillHistory.filter((r) => new Date(r.attempt_date).getTime() < cutoff14);
       const prevBand = before14.length
         ? before14.reduce((s, r) => s + r.daily_band, 0) / before14.length
@@ -247,7 +250,7 @@ export default function ProgressPage() {
         weakArea,
       };
     });
-  }, [summary, allBandHistory, attemptsBySkill]);
+  }, [summary, allBandHistory, attemptsBySkill, nowTs]);
 
   // Activity array (28 days)
   const activity28 = useMemo(() => {
@@ -271,8 +274,7 @@ export default function ProgressPage() {
 
   const streak = summary?.streak ?? 0;
   const targetBand = summary?.target_band ?? 7.0;
-  const isPro = Boolean(summary?.is_pro)
-    || (summary?.plan !== undefined && summary.plan !== "free" && summary?.subscription_status === "active");
+  const hasProgressAccess = canUseProgressTracker(summary);
 
   if (loading) {
     return (
@@ -284,7 +286,7 @@ export default function ProgressPage() {
     );
   }
 
-  if (!isPro) {
+  if (!hasProgressAccess) {
     return <ProgressPaywall />;
   }
 

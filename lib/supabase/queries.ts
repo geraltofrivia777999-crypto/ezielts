@@ -218,6 +218,22 @@ export async function getUserAttempts(
   return (data ?? []) as Database["public"]["Tables"]["user_test_attempts"]["Row"][];
 }
 
+export async function countUserAttemptsSince(
+  sb: SB,
+  userId: string,
+  contentType: ContentType,
+  sinceIso: string
+): Promise<number> {
+  const { count } = await (sb as any)
+    .from("user_test_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("content_type", contentType)
+    .gte("completed_at", sinceIso);
+
+  return count ?? 0;
+}
+
 // ── Progress & Analytics ──────────────────────────────────────────────────────
 
 export async function getBandHistory(sb: SB, userId: string) {

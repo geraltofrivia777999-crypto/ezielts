@@ -56,6 +56,28 @@ interface SpeakingFeedback {
   };
   improvements: Array<{ issue: string; example: string; suggestion: string; category?: string; correction?: string; from_band?: number; to_band?: number; severity?: "minor" | "major" }>;
   model_phrases: string[];
+  detailed_feedback?: Partial<Record<SpeakingAnalysisTab, SpeakingDetailFeedback>>;
+  part_feedback?: SpeakingPartFeedback[];
+}
+
+type SpeakingAnalysisTab = "fluency" | "vocabulary" | "grammar" | "pronunciation";
+
+interface SpeakingDetailFeedback {
+  diagnosis?: string;
+  evidence?: string[];
+  why_it_matters?: string;
+  action_plan?: string[];
+  practice_drill?: string;
+  target_band_hint?: string;
+}
+
+interface SpeakingPartFeedback {
+  part: number;
+  title?: string;
+  summary?: string;
+  strengths?: string[];
+  issues?: string[];
+  next_steps?: string[];
 }
 
 // ─── Fallback topics ──────────────────────────────────────────────────────────
@@ -197,6 +219,11 @@ function SpeakingTestPageContent() {
   const searchParams = useSearchParams();
   const selectedTopicId = searchParams.get("id");
   const selectedPart = Number(searchParams.get("part"));
+  const shouldStartSelectedPart = searchParams.get("start") === "1";
+  const isMockEntry = searchParams.get("mock") === "1";
+  const mockPart1Id = searchParams.get("p1");
+  const mockPart2Id = searchParams.get("p2");
+  const mockPart3Id = searchParams.get("p3");
   const [topics, setTopics] = useState<Topic[]>(FALLBACK_TOPICS as Topic[]);
   const [partIdx, setPartIdx] = useState(0);
   const [questionIdx, setQuestionIdx] = useState(0);
@@ -237,6 +264,42 @@ function SpeakingTestPageContent() {
     async function load() {
       try {
         const sb = createClient();
+        if (isMockEntry && mockPart1Id && mockPart2Id && mockPart3Id) {
+          const ids = [mockPart1Id, mockPart2Id, mockPart3Id];
+          const { data: mockRowsRaw } = await sb
+            .from("speaking_topics")
+            .select("*")
+            .in("id", ids);
+          if (cancelled) return;
+
+          const mockRows = (mockRowsRaw ?? []) as unknown as SpeakingTopic[];
+          const orderedRows = ids
+            .map((id) => mockRows.find((row) => row.id === id))
+            .filter((row): row is SpeakingTopic => Boolean(row));
+
+          if (orderedRows.length === 3) {
+            setTopics(orderedRows.map((row, index) => {
+              const parsed = parseSpeakingTopic(row.topic_text);
+              const fallback = FALLBACK_TOPICS[index];
+              const followUps = Array.isArray(row.follow_up_questions) ? row.follow_up_questions.map(String) : fallback.questions;
+              const cuePoints = Array.isArray(row.cue_card_points) ? row.cue_card_points.map(String) : parsed.bullets ?? fallback.cue_card_points;
+              return {
+                id: row.id,
+                part: row.part,
+                topic_text: parsed.text.trim().length > 5 ? parsed.text : fallback.topic_text,
+                questions: followUps,
+                cue_card_points: cuePoints,
+                sample_answer: row.sample_answer,
+              };
+            }));
+            setMode("full");
+            setPartIdx(0);
+            setQuestionIdx(0);
+            setPhase("landing");
+            return;
+          }
+        }
+
         if (selectedTopicId && [1, 2, 3].includes(selectedPart)) {
           const { data: selectedRaw } = await sb
             .from("speaking_topics")
@@ -261,6 +324,7 @@ function SpeakingTestPageContent() {
             setTopics([selectedTopic]);
             setPartIdx(0);
             setMode("single");
+            if (shouldStartSelectedPart) setPhase("intro");
             return;
           }
         }
@@ -324,7 +388,7 @@ function SpeakingTestPageContent() {
     }
     load();
     return () => { cancelled = true; };
-  }, [selectedPart, selectedTopicId]);
+  }, [isMockEntry, mockPart1Id, mockPart2Id, mockPart3Id, selectedPart, selectedTopicId, shouldStartSelectedPart]);
 
   // Keep currentPartIdxRef in sync so MediaRecorder.onstop knows which part the recording belongs to.
   useEffect(() => { currentPartIdxRef.current = partIdx; }, [partIdx]);
@@ -950,6 +1014,213 @@ function scoreArcStyle(band: number) {
   };
 }
 
+const DETAIL_TAB_META: Record<SpeakingAnalysisTab, { label: string; code: "FC" | "LR" | "GRA" | "PR"; title: string }> = {
+  fluency: { label: "Fluency", code: "FC", title: "Fluency & Coherence Analysis" },
+  vocabulary: { label: "Vocabulary", code: "LR", title: "Vocabulary Analysis" },
+  grammar: { label: "Grammar", code: "GRA", title: "Grammar Analysis" },
+  pronunciation: { label: "Pronunciation", code: "PR", title: "Pronunciation Analysis" },
+};
+
+const DETAIL_TAB_ORDER: SpeakingAnalysisTab[] = ["fluency", "vocabulary", "grammar", "pronunciation"];
+
+type CriterionCard = {
+  code: "FC" | "LR" | "GRA" | "PR";
+  short: string;
+  name: string;
+  band: number;
+  comment?: string;
+};
+
+function firstTranscriptQuote(transcript: string) {
+  const clean = transcript.replace(/\s+/g, " ").trim();
+  if (!clean) return "your answer";
+  const sentence = clean.match(/[^.!?]+[.!?]?/)?.[0]?.trim() ?? clean;
+  return sentence.length > 120 ? `${sentence.slice(0, 117)}...` : sentence;
+}
+
+function mergeSpeakingDetail(apiDetail: SpeakingDetailFeedback | undefined, fallback: Required<SpeakingDetailFeedback>): Required<SpeakingDetailFeedback> {
+  return {
+    diagnosis: apiDetail?.diagnosis?.trim() || fallback.diagnosis,
+    evidence: apiDetail?.evidence?.filter(Boolean).length ? apiDetail.evidence.filter(Boolean).slice(0, 5) : fallback.evidence,
+    why_it_matters: apiDetail?.why_it_matters?.trim() || fallback.why_it_matters,
+    action_plan: apiDetail?.action_plan?.filter(Boolean).length ? apiDetail.action_plan.filter(Boolean).slice(0, 5) : fallback.action_plan,
+    practice_drill: apiDetail?.practice_drill?.trim() || fallback.practice_drill,
+    target_band_hint: apiDetail?.target_band_hint?.trim() || fallback.target_band_hint,
+  };
+}
+
+function buildFallbackDetail({
+  tab,
+  criterion,
+  transcript,
+  wpm,
+  hesitationCount,
+  fillerCount,
+}: {
+  tab: SpeakingAnalysisTab;
+  criterion: CriterionCard;
+  transcript: string;
+  wpm: number;
+  hesitationCount: number;
+  fillerCount: number;
+}): Required<SpeakingDetailFeedback> {
+  const quote = firstTranscriptQuote(transcript);
+  const level = criterion.band >= 7 ? "хороший" : criterion.band >= 5 ? "средний" : "ограниченный";
+
+  if (tab === "fluency") {
+    return {
+      diagnosis: `Темп и связность сейчас дают ${level} уровень: примерно ${wpm} слов в минуту, ${hesitationCount} явных пауз и ${fillerCount} filler words.`,
+      evidence: [
+        `Фрагмент ответа: "${quote}"`,
+        hesitationCount > 0 ? `В речи есть ${hesitationCount} пауз/запинок, которые могут снижать Fluency.` : "Явных filler-пауз немного, это помогает звучать увереннее.",
+        "Ответ нужно разворачивать по схеме: прямой ответ, причина, пример, короткий вывод.",
+      ],
+      why_it_matters: "IELTS оценивает не только скорость, а способность говорить непрерывно и логично развивать мысль без долгого поиска слов.",
+      action_plan: [
+        "Перед ответом держите готовую структуру: answer -> reason -> example -> result.",
+        "Тренируйте 30-секундные ответы без остановки, даже если лексика простая.",
+        "Заменяйте паузы словами-связками: well, actually, from my perspective, as a result.",
+      ],
+      practice_drill: "Возьмите один вопрос Part 1 и дайте три версии ответа: 15 секунд, 25 секунд, 40 секунд. Каждый раз добавляйте одну новую деталь.",
+      target_band_hint: "Для роста на 0.5-1.0 band важно говорить чуть дольше и связывать идеи без резких обрывов.",
+    };
+  }
+
+  if (tab === "vocabulary") {
+    return {
+      diagnosis: "Лексика понятная, но ей нужно больше точности: меньше общих слов и больше natural collocations по теме.",
+      evidence: [
+        `Фрагмент ответа: "${quote}"`,
+        "Если в ответе часто повторяются basic words, Lexical Resource не поднимается выше среднего уровня.",
+        "Экзаменатору важно видеть paraphrasing, topic vocabulary и умение выбирать точные слова.",
+      ],
+      why_it_matters: "В IELTS высокий LR дают не за сложные слова сами по себе, а за точные выражения, natural collocations и гибкость перефразирования.",
+      action_plan: [
+        "Заменяйте very good / interesting / bad на более точные прилагательные по контексту.",
+        "Для каждой темы готовьте 6-8 collocations и используйте их в полных предложениях.",
+        "После записи перепишите 2 простые фразы в более академичном или естественном стиле.",
+      ],
+      practice_drill: "Выберите 5 слов из ответа и напишите к каждому более точную альтернативу, затем проговорите ответ заново.",
+      target_band_hint: "Чтобы звучать на Band 6+, добавляйте topic-specific phrases и избегайте повторов одного и того же слова.",
+    };
+  }
+
+  if (tab === "grammar") {
+    return {
+      diagnosis: "Грамматика требует больше контроля: важно сочетать точность базовых структур с 1-2 сложными предложениями в каждом ответе.",
+      evidence: [
+        `Фрагмент ответа: "${quote}"`,
+        "Проверяйте subject-verb agreement, articles и формы прошедшего/настоящего времени.",
+        "Короткие простые предложения безопасны, но ограничивают Grammatical Range.",
+      ],
+      why_it_matters: "IELTS GRA оценивает диапазон и точность. Даже хорошая идея теряет баллы, если ошибка мешает понять связь между действиями и временем.",
+      action_plan: [
+        "Используйте связки because, although, while, which, that для сложных предложений.",
+        "После ответа быстро проверьте времена: past для прошлого опыта, present perfect для опыта до настоящего.",
+        "Отрабатывайте одну грамматическую цель за запись, например articles или complex sentences.",
+      ],
+      practice_drill: "Возьмите 3 простых предложения из ответа и объедините их в одно сложное с because / although / which.",
+      target_band_hint: "Для Band 6+ нужно меньше системных ошибок в простых структурах и несколько уверенных complex sentences.",
+    };
+  }
+
+  return {
+    diagnosis: "Произношение по текстовому транскрипту оценивается ограниченно, но можно анализировать рискованные слова, ритм и понятность фраз.",
+    evidence: [
+      `Фрагмент ответа: "${quote}"`,
+      "Если транскрипт распознал слова неточно, это может указывать на проблемы с clear articulation.",
+      "Для Speaking важны word stress, sentence stress и спокойный темп, а не идеальный акцент.",
+    ],
+    why_it_matters: "Pronunciation влияет на то, насколько легко экзаменатор понимает речь с первого раза. Небольшой акцент допустим, но неясные звуки и неправильное ударение снижают балл.",
+    action_plan: [
+      "Выделяйте ударные слова в каждом предложении и произносите их чуть сильнее.",
+      "Запишите 5 сложных слов из темы, проверьте ударение и повторите их в предложениях.",
+      "Говорите чуть медленнее на ключевых noun phrases, чтобы не проглатывать окончания.",
+    ],
+    practice_drill: "Прочитайте один ответ вслух три раза: сначала медленно, затем в нормальном темпе, затем с акцентом на sentence stress.",
+    target_band_hint: "Для роста Pronunciation нужна стабильная понятность: четкие окончания, правильное ударение и ровная интонация.",
+  };
+}
+
+function buildFallbackImprovements(tab: SpeakingAnalysisTab, transcript: string): SpeakingFeedback["improvements"] {
+  const quote = firstTranscriptQuote(transcript);
+  const fallbacks: Record<SpeakingAnalysisTab, SpeakingFeedback["improvements"]> = {
+    fluency: [
+      {
+        category: "fluency",
+        issue: "Ответ можно развить связнее",
+        example: quote,
+        correction: `${cleanSpeakingText(quote)} because it gives me a clear reason and a specific example.`,
+        suggestion: "Добавьте причину и пример, чтобы ответ звучал как законченная мысль, а не короткая реплика.",
+        severity: "major",
+      },
+    ],
+    vocabulary: [
+      {
+        category: "vocabulary",
+        issue: "Нужна более точная лексика",
+        example: quote,
+        correction: "a wide range of opportunities / a meaningful experience / a practical solution",
+        suggestion: "Заменяйте общие слова на topic-specific collocations, чтобы поднять Lexical Resource.",
+        severity: "minor",
+      },
+    ],
+    grammar: [
+      {
+        category: "grammar",
+        issue: "Добавьте сложную структуру",
+        example: quote,
+        correction: "Although it can be challenging, I find it useful because it helps me improve steadily.",
+        suggestion: "Используйте although/because/which, чтобы показать диапазон грамматики и связать идеи.",
+        severity: "major",
+      },
+    ],
+    pronunciation: [
+      {
+        category: "pronunciation",
+        issue: "Проверьте ударение и четкость",
+        example: quote,
+        correction: "Mark key words with sentence stress and keep endings clear.",
+        suggestion: "Произнесите ключевые слова медленнее и четче, особенно окончания и длинные noun phrases.",
+        severity: "minor",
+      },
+    ],
+  };
+  return fallbacks[tab];
+}
+
+function getPartFeedback({
+  feedback,
+  partNumber,
+  topic,
+  transcript,
+}: {
+  feedback: SpeakingFeedback;
+  partNumber: number;
+  topic?: Topic;
+  transcript: string;
+}): Required<Omit<SpeakingPartFeedback, "part">> {
+  const fromAi = feedback.part_feedback?.find((item) => item.part === partNumber);
+  const title = fromAi?.title || (topic?.topic_text ? `Part ${partNumber}: ${topic.topic_text}` : `Part ${partNumber}`);
+  const promptCount = topic?.questions?.length ?? topic?.cue_card_points?.length ?? 0;
+  return {
+    title,
+    summary: fromAi?.summary || `В этой части важно отвечать прямо по теме и раскрывать каждую идею. Сейчас фрагмент ответа содержит ${transcript.split(/\s+/).filter(Boolean).length} слов.`,
+    strengths: fromAi?.strengths?.filter(Boolean).length ? fromAi.strengths.filter(Boolean).slice(0, 3) : [
+      promptCount > 0 ? `Ответ связан с ${promptCount} prompt${promptCount > 1 ? "s" : ""} этой части.` : "Есть базовая попытка ответить на тему.",
+      "Материал можно использовать для точечной доработки по IELTS-критериям.",
+    ],
+    issues: fromAi?.issues?.filter(Boolean).length ? fromAi.issues.filter(Boolean).slice(0, 3) : [
+      "Нужно больше конкретики: причина, пример, результат.",
+      "Следите, чтобы ответ не превращался в отдельные короткие фразы без связки.",
+    ],
+    next_steps: fromAi?.next_steps?.filter(Boolean).length ? fromAi.next_steps.filter(Boolean).slice(0, 3) : [
+      "Перезапишите эту часть и добавьте минимум один личный пример.",
+      "Проверьте один критерий за раз: сначала Fluency, затем Vocabulary, Grammar и Pronunciation.",
+    ],
+  };
+}
+
 // ─── Speaking Report ─────────────────────────────────────────────────────────
 
 function SpeakingReportV2({
@@ -967,7 +1238,7 @@ function SpeakingReportV2({
 }) {
   const [activePart, setActivePart] = useState(0);
   const [answerView, setAnswerView] = useState<"original" | "feedback">("feedback");
-  const [analysisTab, setAnalysisTab] = useState<"fluency" | "vocabulary" | "grammar" | "pronunciation">("fluency");
+  const [analysisTab, setAnalysisTab] = useState<SpeakingAnalysisTab>("fluency");
 
   const overall = feedback.overall_band;
   const cefr = bandToCEFR(overall);
@@ -975,12 +1246,13 @@ function SpeakingReportV2({
   const visibleTopics = topics.length > 0 ? topics : (FALLBACK_TOPICS as Topic[]);
   const transcriptParts = splitTranscriptForParts(feedback.transcript, visibleTopics.length);
   const activeTopic = visibleTopics[Math.min(activePart, visibleTopics.length - 1)];
+  const activePartNumber = activeTopic?.part ?? activePart + 1;
   const activeTranscript = transcriptParts[Math.min(activePart, transcriptParts.length - 1)] || feedback.transcript;
   const wpm = speakingSpeed(wordCount, visibleTopics.length);
   const hesitationCount = Math.max(0, (feedback.transcript.match(/\b(um|uh|er|like|you know)\b/gi) ?? []).length);
   const fillerCount = Math.max(0, (feedback.transcript.match(/\b(so|actually|basically|well)\b/gi) ?? []).length);
 
-  const criteriaCards = [
+  const criteriaCards: CriterionCard[] = [
     {
       code: "FC",
       short: "Fluency",
@@ -1022,14 +1294,15 @@ function SpeakingReportV2({
       "Практикуйте ответы вслух с таймером, чтобы уменьшить паузы.",
     ];
 
-  const detailTabs = [
-    { id: "fluency", label: "Fluency", code: "FC" },
-    { id: "vocabulary", label: "Vocabulary", code: "LR" },
-    { id: "grammar", label: "Grammar", code: "GRA" },
-    { id: "pronunciation", label: "Pronunciation", code: "PR" },
-  ] as const;
-  const activeCriterion = criteriaCards.find((c) => c.code === detailTabs.find((t) => t.id === analysisTab)?.code) ?? criteriaCards[0];
+  const detailTabs = DETAIL_TAB_ORDER.map((id) => ({ id, ...DETAIL_TAB_META[id] }));
+  const activeCriterion = criteriaCards.find((c) => c.code === DETAIL_TAB_META[analysisTab].code) ?? criteriaCards[0];
   const activeImprovements = feedback.improvements.filter((imp) => categoryFilter(activeCriterion.code, imp));
+  const activeDetail = mergeSpeakingDetail(
+    feedback.detailed_feedback?.[analysisTab],
+    buildFallbackDetail({ tab: analysisTab, criterion: activeCriterion, transcript: activeTranscript, wpm, hesitationCount, fillerCount }),
+  );
+  const visibleImprovements = activeImprovements.length ? activeImprovements : buildFallbackImprovements(analysisTab, activeTranscript);
+  const partFeedback = getPartFeedback({ feedback, partNumber: activePartNumber, topic: activeTopic, transcript: activeTranscript });
 
   async function shareReport() {
     const text = `IELTS Speaking: ${overall.toFixed(1)} (${cefr})`;
@@ -1198,6 +1471,50 @@ function SpeakingReportV2({
                   <p className={cn("whitespace-pre-wrap text-lg leading-relaxed", answerView === "feedback" ? "text-[rgb(var(--foreground))]" : "text-[rgb(var(--muted-foreground))]")}>
                     {activeTranscript || "Транскрипт недоступен."}
                   </p>
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <h4 className="font-semibold text-[rgb(var(--foreground))]">{partFeedback.title}</h4>
+                      <Badge variant="secondary" className="rounded-full">Part {activePartNumber}</Badge>
+                    </div>
+                    <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">{partFeedback.summary}</p>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Что уже хорошо</div>
+                        <ul className="flex flex-col gap-2">
+                          {partFeedback.strengths.map((item, index) => (
+                            <li key={index} className="flex gap-2 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-orange-700">Что доработать</div>
+                        <ul className="flex flex-col gap-2">
+                          {partFeedback.next_steps.map((item, index) => (
+                            <li key={index} className="flex gap-2 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+                              <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    {partFeedback.issues.length > 0 && (
+                      <div className="mt-4 rounded-xl bg-[rgb(var(--surface))] p-4">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Главные риски в Part {activePartNumber}</div>
+                        <ul className="flex flex-col gap-2">
+                          {partFeedback.issues.map((item, index) => (
+                            <li key={index} className="flex gap-2 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+                              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1207,6 +1524,8 @@ function SpeakingReportV2({
                     <button
                       key={tab.id}
                       type="button"
+                      aria-pressed={analysisTab === tab.id}
+                      data-analysis-tab={tab.id}
                       onClick={() => setAnalysisTab(tab.id)}
                       className={cn(
                         "rounded-xl px-4 py-2 text-base font-medium transition-colors",
@@ -1218,35 +1537,18 @@ function SpeakingReportV2({
                   ))}
                 </div>
 
-                <h3 className="mb-5 text-xl font-bold text-[rgb(var(--foreground))]">{activeCriterion.short} Analysis</h3>
-                {analysisTab === "fluency" ? (
-                  <FluencyAnalysis wpm={wpm} hesitationCount={hesitationCount} fillerCount={fillerCount} duration={activePart === 1 ? 120 : 15} />
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <div className="rounded-2xl bg-[rgb(var(--surface-elevated))] p-5">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="font-semibold text-[rgb(var(--foreground))]">{activeCriterion.name}</span>
-                        <span className="font-mono text-2xl font-bold">{activeCriterion.band.toFixed(1)}</span>
-                      </div>
-                      <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
-                        {activeCriterion.comment || CRITERIA_DESCRIPTIONS[activeCriterion.code]?.[activeCriterion.band >= 7 ? "high" : activeCriterion.band >= 5 ? "mid" : "low"]}
-                      </p>
-                    </div>
-                    {(activeImprovements.length ? activeImprovements : feedback.improvements.slice(0, 2)).map((imp, index) => (
-                      <div key={index} className="rounded-xl border border-[rgb(var(--border))] p-4">
-                        <p className="font-semibold text-[rgb(var(--foreground))]">{imp.issue}</p>
-                        {imp.example && (
-                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                            <p className="text-sm text-rose-600 line-through">{cleanSpeakingText(imp.example)}</p>
-                            <ArrowRight className="hidden h-4 w-4 text-[rgb(var(--muted-foreground))] sm:block" />
-                            <p className="text-sm font-medium text-emerald-700">{cleanSpeakingText(imp.correction) || imp.suggestion}</p>
-                          </div>
-                        )}
-                        <p className="mt-2 text-sm text-[rgb(var(--muted-foreground))]">{imp.suggestion}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <DetailedCategoryAnalysis
+                  key={analysisTab}
+                  tab={analysisTab}
+                  criterion={activeCriterion}
+                  detail={activeDetail}
+                  improvements={visibleImprovements}
+                  wpm={wpm}
+                  hesitationCount={hesitationCount}
+                  fillerCount={fillerCount}
+                  duration={activePart === 1 ? 120 : 15}
+                  partIssues={partFeedback.issues}
+                />
               </div>
             </div>
           </div>
@@ -1319,6 +1621,125 @@ function SpeakingReportV2({
           <Button className="flex-1" onClick={onRetry}>Ещё практика</Button>
         </div>
       </main>
+    </div>
+  );
+}
+
+function DetailedCategoryAnalysis({
+  tab,
+  criterion,
+  detail,
+  improvements,
+  wpm,
+  hesitationCount,
+  fillerCount,
+  duration,
+  partIssues,
+}: {
+  tab: SpeakingAnalysisTab;
+  criterion: CriterionCard;
+  detail: Required<SpeakingDetailFeedback>;
+  improvements: SpeakingFeedback["improvements"];
+  wpm: number;
+  hesitationCount: number;
+  fillerCount: number;
+  duration: number;
+  partIssues: string[];
+}) {
+  return (
+    <div className="flex flex-col gap-5" data-active-analysis={tab}>
+      <div className="rounded-2xl bg-[rgb(var(--surface-elevated))] p-5">
+        <div className="mb-3 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-[rgb(var(--muted-foreground))]">{DETAIL_TAB_META[tab].title}</p>
+            <h3 className="text-xl font-bold text-[rgb(var(--foreground))]">{criterion.name}</h3>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-3xl font-bold text-[rgb(var(--foreground))]">{criterion.band.toFixed(1)}</div>
+            <div className="text-xs text-[rgb(var(--muted-foreground))]">band</div>
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+          {criterion.comment || CRITERIA_DESCRIPTIONS[criterion.code]?.[criterion.band >= 7 ? "high" : criterion.band >= 5 ? "mid" : "low"]}
+        </p>
+      </div>
+
+      {tab === "fluency" && (
+        <FluencyAnalysis wpm={wpm} hesitationCount={hesitationCount} fillerCount={fillerCount} duration={duration} compact />
+      )}
+
+      <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Info className="h-4 w-4 text-[#1473E6]" />
+          <h4 className="font-semibold text-[rgb(var(--foreground))]">Диагноз по критерию</h4>
+        </div>
+        <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">{detail.diagnosis}</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-[rgb(var(--border))] p-5">
+          <h4 className="mb-3 font-semibold text-[rgb(var(--foreground))]">Доказательства из ответа</h4>
+          <ul className="flex flex-col gap-2">
+            {detail.evidence.map((item, index) => (
+              <li key={index} className="flex gap-2 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1473E6]" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-[rgb(var(--border))] p-5">
+          <h4 className="mb-3 font-semibold text-[rgb(var(--foreground))]">Почему это важно</h4>
+          <p className="text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">{detail.why_it_matters}</p>
+          {partIssues.length > 0 && (
+            <div className="mt-4 rounded-xl bg-orange-50 p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-orange-700">Риск в этой части</div>
+              <p className="text-sm leading-relaxed text-orange-800">{partIssues[0]}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-[#1473E6]" />
+          <h4 className="font-semibold text-[rgb(var(--foreground))]">План улучшения</h4>
+        </div>
+        <ul className="flex flex-col gap-2">
+          {detail.action_plan.map((item, index) => (
+            <li key={index} className="flex gap-2 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+              <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-[#1473E6]" />
+              {item}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 rounded-xl bg-[rgb(var(--surface))] p-4">
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--muted-foreground))]">Drill на сегодня</div>
+          <p className="text-sm leading-relaxed text-[rgb(var(--foreground))]">{detail.practice_drill}</p>
+        </div>
+        <p className="mt-3 text-sm font-medium text-[#1473E6]">{detail.target_band_hint}</p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <h4 className="font-semibold text-[rgb(var(--foreground))]">Конкретные правки</h4>
+        {improvements.slice(0, 4).map((imp, index) => (
+          <div key={`${tab}-${index}`} className="rounded-xl border border-[rgb(var(--border))] p-4">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-[rgb(var(--foreground))]">{imp.issue}</p>
+              {imp.severity && <Badge variant={imp.severity === "major" ? "destructive" : "secondary"} className="rounded-full">{imp.severity}</Badge>}
+              {imp.from_band && imp.to_band && <Badge variant="outline" className="rounded-full">Band {imp.from_band} → {imp.to_band}</Badge>}
+            </div>
+            {imp.example && (
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                <p className="text-sm text-rose-600 line-through">{cleanSpeakingText(imp.example)}</p>
+                <ArrowRight className="hidden h-4 w-4 text-[rgb(var(--muted-foreground))] sm:block" />
+                <p className="text-sm font-medium text-emerald-700">{cleanSpeakingText(imp.correction) || imp.suggestion}</p>
+              </div>
+            )}
+            <p className="mt-2 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">{imp.suggestion}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1396,11 +1817,13 @@ function FluencyAnalysis({
   hesitationCount,
   fillerCount,
   duration,
+  compact = false,
 }: {
   wpm: number;
   hesitationCount: number;
   fillerCount: number;
   duration: number;
+  compact?: boolean;
 }) {
   const marker = Math.min(96, Math.max(2, ((wpm - 60) / 140) * 100));
   return (
@@ -1436,12 +1859,12 @@ function FluencyAnalysis({
           <span className="text-rose-500">Too Fast</span>
         </div>
       </div>
-      <div className="rounded-2xl bg-blue-50 p-5 text-blue-700">
+      {!compact && <div className="rounded-2xl bg-blue-50 p-5 text-blue-700">
         <div className="flex gap-3">
           <Info className="mt-0.5 h-5 w-5 shrink-0" />
           <p className="text-sm leading-relaxed">Examiners will most likely enjoy your speaking if you speak using around 120 to 150 words per minute.</p>
         </div>
-      </div>
+      </div>}
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-xl bg-[rgb(var(--surface-elevated))] p-4 text-center">
           <div className="text-3xl font-bold">{hesitationCount}</div>

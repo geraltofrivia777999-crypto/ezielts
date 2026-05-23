@@ -8,8 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
-  ChevronLeft,
-  Star,
   Calendar,
   Target,
   BookOpen,
@@ -25,6 +23,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/layout/app-shell";
+import { hasActiveProAccess } from "@/lib/supabase/access";
 
 type Profile = {
   name: string | null;
@@ -135,16 +134,20 @@ export default function PlanPage() {
       if (!user) return;
 
       /* eslint-disable @typescript-eslint/no-explicit-any */
-      const { data } = await (sb as any)
-        .from("profiles")
-        .select(`
-          name, target_band, exam_date,
-          band_reading, band_listening, band_writing, band_speaking,
-          subscriptions(plan, status)
-        `)
-        .eq("id", user.id)
-        .single();
+      const [profileRes, summaryRes] = await Promise.all([
+        (sb as any)
+          .from("profiles")
+          .select("name, target_band, exam_date, band_reading, band_listening, band_writing, band_speaking")
+          .eq("id", user.id)
+          .single(),
+        (sb as any)
+          .from("v_user_summary")
+          .select("is_pro, plan, subscription_status, current_period_end")
+          .eq("id", user.id)
+          .single(),
+      ]);
 
+      const data = profileRes.data;
       if (data) {
         const p: Profile = {
           name: data.name,
@@ -155,11 +158,10 @@ export default function PlanPage() {
           band_writing: data.band_writing,
           band_speaking: data.band_speaking,
         };
-        const sub = data.subscriptions?.[0];
-        const proStatus = sub && sub.plan !== "free" && sub.status === "active";
-        setIsPro(!!proStatus);
+        const proStatus = hasActiveProAccess(summaryRes.data);
+        setIsPro(proStatus);
         setProfile(p);
-        setPlan(buildPlan(p, !!proStatus));
+        setPlan(buildPlan(p, proStatus));
       }
       setLoading(false);
     }
