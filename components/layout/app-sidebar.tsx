@@ -50,7 +50,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const activeTestSection = hasCatalogSection ? rawTestSection : null;
 
   return (
-    <aside className="w-60 bg-[rgb(var(--surface))/0.94] supports-[backdrop-filter]:bg-white/85 backdrop-blur-xl border-r border-[rgb(var(--border))] flex flex-col h-screen sticky top-0 animate-fade-in">
+    <aside className="w-60 bg-[rgb(var(--surface))/0.96] supports-[backdrop-filter]:bg-white/88 backdrop-blur-md border-r border-[rgb(var(--border))] flex flex-col h-screen sticky top-0">
       {/* Logo */}
       <div className="px-5 pt-5 pb-4 border-b border-[rgb(var(--border))]">
         <Link href="/" className="flex items-center gap-2 group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2">
@@ -76,7 +76,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
                 href={item.href}
                 onClick={onNavigate}
                 className={cn(
-                  "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2",
+                  "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-[background-color,color,box-shadow] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2",
                   active
                     ? "bg-[rgb(var(--primary))] text-white shadow-md shadow-[rgb(var(--primary)/0.22)]"
                     : "text-[rgb(var(--foreground))] hover:bg-[rgb(var(--primary)/0.06)]"
@@ -85,7 +85,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
                 {active && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-1 h-5 bg-white rounded-full" />
                 )}
-                <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", active ? "text-white" : "text-[rgb(var(--muted-foreground))]")} strokeWidth={2.25} />
+                <item.icon className={cn("w-4 h-4 shrink-0 transition-colors duration-200", active ? "text-white" : "text-[rgb(var(--muted-foreground))]")} strokeWidth={2.25} />
                 {item.label}
               </Link>
 
@@ -98,7 +98,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
                     href={section.href}
                     onClick={onNavigate}
                     className={cn(
-                      "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2",
+                      "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-[background-color,color,box-shadow] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2",
                       sectionActive
                         ? "bg-[rgb(var(--primary))] text-white shadow-md shadow-[rgb(var(--primary)/0.22)]"
                         : "text-[rgb(var(--foreground))] hover:bg-[rgb(var(--primary)/0.06)]"
@@ -107,7 +107,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
                     {sectionActive && (
                       <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-1 h-5 bg-white rounded-full" />
                     )}
-                    <SectionIcon className={cn("w-4 h-4 shrink-0 transition-colors", sectionActive ? "text-white" : "text-[rgb(var(--muted-foreground))]")} strokeWidth={2.25} />
+                    <SectionIcon className={cn("w-4 h-4 shrink-0 transition-colors duration-200", sectionActive ? "text-white" : "text-[rgb(var(--muted-foreground))]")} strokeWidth={2.25} />
                     {section.label}
                   </Link>
                 );
@@ -126,7 +126,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2",
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-[background-color,color,box-shadow] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2",
                 active
                   ? "bg-[rgb(var(--primary))] text-white shadow-md shadow-[rgb(var(--primary)/0.22)]"
                   : "text-[rgb(var(--foreground))] hover:bg-[rgb(var(--primary)/0.06)]"
@@ -154,7 +154,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
           href="#"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl bg-[rgb(var(--primary))] text-white px-3 py-2.5 flex items-center justify-center gap-2 hover:bg-[rgb(var(--primary)/0.92)] text-xs font-semibold transition-all shadow-sm shadow-[rgb(var(--primary)/0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2"
+          className="rounded-xl bg-[rgb(var(--primary))] text-white px-3 py-2.5 flex items-center justify-center gap-2 hover:bg-[rgb(var(--primary)/0.92)] text-xs font-semibold transition-[background-color,box-shadow] duration-150 ease-out shadow-sm shadow-[rgb(var(--primary)/0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2"
         >
           <Users className="w-3.5 h-3.5" />
           IELTS Telegram

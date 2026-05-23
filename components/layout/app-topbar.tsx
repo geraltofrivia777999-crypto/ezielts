@@ -42,7 +42,7 @@ export function AppTopbar({
   const initial = (name || email || "У").trim().charAt(0).toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 bg-[rgb(var(--surface))/0.86] supports-[backdrop-filter]:bg-white/75 backdrop-blur-xl border-b border-[rgb(var(--border))]">
+    <header className="sticky top-0 z-40 bg-[rgb(var(--surface))/0.9] supports-[backdrop-filter]:bg-white/82 backdrop-blur-md border-b border-[rgb(var(--border))]">
       <div className="px-4 sm:px-6 h-14 flex items-center gap-3">
         {/* Mobile menu button */}
         <button
@@ -70,7 +70,7 @@ export function AppTopbar({
           <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="w-9 h-9 rounded-full bg-[rgb(var(--primary))] flex items-center justify-center text-white font-bold text-sm hover:opacity-90 transition-all shadow-md shadow-[rgb(var(--primary)/0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2"
+              className="w-9 h-9 rounded-full bg-[rgb(var(--primary))] flex items-center justify-center text-white font-bold text-sm hover:opacity-90 transition-[opacity,box-shadow,transform] duration-150 ease-out shadow-md shadow-[rgb(var(--primary)/0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2"
             >
               {initial}
             </button>

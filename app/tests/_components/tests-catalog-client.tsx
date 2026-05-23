@@ -203,7 +203,7 @@ function TestCard({
   return (
     <div
       className={cn(
-        "group rounded-xl border bg-[rgb(var(--surface))] p-4 shadow-sm transition-all",
+        "content-auto group rounded-xl border bg-[rgb(var(--surface))] p-4 shadow-sm transition-[border-color,box-shadow,opacity] duration-200 ease-out",
         completed
           ? "border-[rgb(var(--success)/0.5)] ring-1 ring-[rgb(var(--success)/0.25)]"
           : "border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.45)] hover:shadow-md",
