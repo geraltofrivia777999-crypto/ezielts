@@ -1,8 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
+
+function AppSidebarFallback() {
+  return (
+    <aside className="w-60 bg-[rgb(var(--surface))/0.94] border-r border-[rgb(var(--border))] h-screen sticky top-0" />
+  );
+}
 
 /** Wraps any authenticated page with sidebar + topbar layout. */
 export function AppShell({
@@ -18,7 +24,9 @@ export function AppShell({
     <div className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,rgb(var(--background))_0%,rgb(var(--surface-elevated)/0.48)_100%)] flex">
       {/* Desktop sidebar */}
       <div className="hidden md:block shrink-0">
-        <AppSidebar />
+        <Suspense fallback={<AppSidebarFallback />}>
+          <AppSidebar />
+        </Suspense>
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -29,7 +37,9 @@ export function AppShell({
             onClick={() => setMobileOpen(false)}
           />
           <div className="fixed inset-y-0 left-0 z-50 md:hidden" style={{ animation: "slide-in-left 0.25s ease-out" }}>
-            <AppSidebar onNavigate={() => setMobileOpen(false)} />
+            <Suspense fallback={<AppSidebarFallback />}>
+              <AppSidebar onNavigate={() => setMobileOpen(false)} />
+            </Suspense>
           </div>
         </>
       )}
