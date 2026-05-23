@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { cn, formatBand } from "@/lib/utils";
 import {
   BookOpen,
@@ -266,60 +265,63 @@ export default function DiagnosticPage() {
   // ─── INTRO ───────────────────────────────────────────────────────────────
   if (phase === "intro") {
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col">
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="max-w-lg w-full text-center">
-            <div
-              className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center"
-              style={{ background: "rgb(var(--primary))" }}
-            >
-              <Brain className="w-8 h-8 text-white" />
+      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center px-4 py-10">
+        <div className="w-full max-w-3xl text-center">
+          <Link href="/" className="mb-10 inline-flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-[rgb(var(--primary))] flex items-center justify-center shadow-lg shadow-[rgb(var(--primary)/0.25)]">
+              <span className="text-white font-bold text-sm">EZ</span>
             </div>
-            <Badge variant="default" className="mb-4">Бесплатно · Без регистрации</Badge>
-            <h1 className="text-3xl font-bold text-[rgb(var(--foreground))] mb-4">
-              Диагностика уровня IELTS
-            </h1>
-            <p className="text-[rgb(var(--muted-foreground))] mb-8 leading-relaxed">
-              {total} вопросов по Reading и Grammar. Займёт около{" "}
-              <strong className="text-[rgb(var(--foreground))]">10 минут</strong>. По итогам
-              получишь оценку band и персональные рекомендации.
-            </p>
+            <span className="font-semibold text-[rgb(var(--foreground))] text-lg">EZielts</span>
+          </Link>
 
-            <div className="flex flex-col gap-3 mb-8">
-              {DIAGNOSTIC_SKILLS.map((skill) => {
-                const { icon: Icon, label, color, bg } = SKILL_META[skill];
-                const count = DIAGNOSTIC_QUESTIONS.filter((q) => q.skill === skill).length;
-                return (
-                  <div
-                    key={skill}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl",
-                      bg
-                    )}
-                  >
-                    <Icon className={cn("w-5 h-5", color)} />
-                    <span className="font-medium text-sm text-[rgb(var(--foreground))]">{label}</span>
-                    <span className="ml-auto text-sm text-[rgb(var(--muted-foreground))]">
-                      {count} вопросов
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-center gap-2 text-sm text-[rgb(var(--muted-foreground))] mb-6">
-              <Clock className="w-4 h-4" />
-              ~10 минут
-            </div>
-
-            <Button size="xl" className="w-full" onClick={() => setPhase("test")}>
-              Начать диагностику
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-            <p className="text-xs text-[rgb(var(--muted))] mt-4">
-              Регистрация не нужна — результаты покажем сразу
-            </p>
+          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[rgb(var(--primary)/0.08)]">
+            <Brain className="h-11 w-11 text-[rgb(var(--primary))]" />
           </div>
+
+          <h1 className="mb-5 text-3xl font-bold tracking-tight text-[rgb(var(--foreground))] sm:text-4xl">
+            Добро пожаловать в EZielts
+          </h1>
+
+          <div className="mb-8 rounded-3xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-6 py-8 shadow-sm sm:px-10">
+            <p className="mx-auto max-w-2xl text-2xl font-semibold leading-snug text-[rgb(var(--foreground))] sm:text-3xl">
+              Ответь на несколько быстрых вопросов, чтобы узнать примерный IELTS band и получить персональные рекомендации бесплатно.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-2 text-sm font-medium text-[rgb(var(--muted-foreground))]">
+              <Clock className="h-4 w-4" />
+              Меньше 10 минут
+            </div>
+          </div>
+
+          <div className="mb-8 flex items-center justify-center gap-2 text-base font-medium text-[rgb(var(--foreground))]">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" />
+            </span>
+            Диагностика считает уровень по Reading и Grammar
+          </div>
+
+          <div className="mx-auto mb-8 grid max-w-xl gap-3 sm:grid-cols-2">
+            {DIAGNOSTIC_SKILLS.map((skill) => {
+              const { icon: Icon, label, color, bg } = SKILL_META[skill];
+              const count = DIAGNOSTIC_QUESTIONS.filter((item) => item.skill === skill).length;
+              return (
+                <div key={skill} className={cn("flex items-center gap-3 rounded-2xl px-4 py-3 text-left", bg)}>
+                  <Icon className={cn("h-5 w-5", color)} />
+                  <div>
+                    <div className="text-sm font-semibold text-[rgb(var(--foreground))]">{label}</div>
+                    <div className="text-xs text-[rgb(var(--muted-foreground))]">{count} вопросов</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Button size="xl" className="min-w-64" onClick={() => setPhase("test")}>
+            Продолжить
+            <ChevronRight className="w-5 h-5" />
+          </Button>
+          <p className="mt-4 text-xs text-[rgb(var(--muted-foreground))]">
+            Результат покажем сразу, карту вводить не нужно
+          </p>
         </div>
       </div>
     );
@@ -422,13 +424,10 @@ export default function DiagnosticPage() {
             {/* CTA */}
             <div className="flex flex-col gap-3">
               <Button size="lg" className="w-full" asChild>
-                <Link href="/signup">
+                <Link href="/signup?from=diagnostic">
                   Создать аккаунт и сохранить результаты
                   <ArrowRight className="w-4 h-4" />
                 </Link>
-              </Button>
-              <Button size="lg" variant="outline" className="w-full" asChild>
-                <Link href="/login">Уже есть аккаунт — войти</Link>
               </Button>
             </div>
             <p className="text-xs text-center text-[rgb(var(--muted))] mt-4">

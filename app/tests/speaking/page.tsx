@@ -25,11 +25,13 @@ import {
   Gauge,
   Timer,
   Play,
+  Pause,
   Eye,
   Info,
   ArrowRight,
+  X,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSpeakingTopics } from "@/lib/supabase/queries";
 import { parseSpeakingTopic } from "@/lib/test-mapping/content-filter";
@@ -61,6 +63,25 @@ interface SpeakingFeedback {
 }
 
 type SpeakingAnalysisTab = "fluency" | "vocabulary" | "grammar" | "pronunciation";
+type RecordedAudioUrls = Record<number, string>;
+type RecordedSegmentBlobs = Record<number, Record<number, Blob>>;
+
+interface RecordedAudioSegment {
+  questionIndex: number;
+  url: string;
+  duration: number;
+}
+
+type RecordedAudioSegments = Record<number, RecordedAudioSegment[]>;
+
+interface InlineAiState {
+  open: boolean;
+  title: string;
+  prompt: string;
+  answer: string;
+  loading: boolean;
+  error: string | null;
+}
 
 interface SpeakingDetailFeedback {
   diagnosis?: string;
@@ -199,6 +220,177 @@ function SpeakButton({ text, className }: { text: string; className?: string }) 
   );
 }
 
+function AudioPlaybackButton({
+  src,
+  label = "Прослушать себя",
+  compact = false,
+  iconOnly = false,
+}: {
+  src?: string | null;
+  label?: string;
+  compact?: boolean;
+  iconOnly?: boolean;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    function handleEnded() {
+      setPlaying(false);
+    }
+
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("pause", handleEnded);
+    return () => {
+      audio.pause();
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("pause", handleEnded);
+    };
+  }, [src]);
+
+  async function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio || !src) return;
+
+    if (playing) {
+      audio.pause();
+      audio.currentTime = 0;
+      setPlaying(false);
+      return;
+    }
+
+    try {
+      audio.currentTime = 0;
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+    }
+  }
+
+  if (!src) return null;
+
+  return (
+    <>
+      <audio ref={audioRef} src={src} preload="metadata" />
+      <button
+        type="button"
+        onClick={togglePlayback}
+        aria-label={playing ? "Остановить" : label}
+        title={playing ? "Остановить" : label}
+        className={cn(
+          "inline-flex items-center justify-center gap-2 border font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))]",
+          iconOnly
+            ? "h-8 w-8 rounded-full border-transparent bg-blue-50 text-blue-500 hover:bg-blue-100"
+            : "rounded-xl border-[rgb(var(--border))] bg-white text-[rgb(var(--foreground))] shadow-sm hover:bg-[rgb(var(--surface-elevated))]",
+          !iconOnly && (compact ? "h-9 px-3 text-xs" : "h-11 px-4 text-sm")
+        )}
+      >
+        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+        {!iconOnly && (playing ? "Остановить" : label)}
+      </button>
+    </>
+  );
+}
+
+function AudioSequencePlaybackButton({
+  segments,
+  label,
+}: {
+  segments: RecordedAudioSegment[];
+  label: string;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    async function playAt(index: number) {
+      if (!audio || !segments[index]) {
+        setPlaying(false);
+        setCurrentIndex(0);
+        return;
+      }
+
+      audio.src = segments[index].url;
+      currentIndexRef.current = index;
+      setCurrentIndex(index);
+      try {
+        await audio.play();
+        setPlaying(true);
+      } catch {
+        setPlaying(false);
+      }
+    }
+
+    function handleEnded() {
+      const nextIndex = currentIndexRef.current + 1;
+      if (nextIndex < segments.length) {
+        void playAt(nextIndex);
+        return;
+      }
+      setPlaying(false);
+      setCurrentIndex(0);
+    }
+
+    audio.addEventListener("ended", handleEnded);
+    return () => {
+      audio.pause();
+      audio.removeEventListener("ended", handleEnded);
+    };
+  }, [segments]);
+
+  async function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio || segments.length === 0) return;
+
+    if (playing) {
+      audio.pause();
+      audio.currentTime = 0;
+      setPlaying(false);
+      setCurrentIndex(0);
+      return;
+    }
+
+    audio.src = segments[0].url;
+    currentIndexRef.current = 0;
+    setCurrentIndex(0);
+    try {
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+    }
+  }
+
+  if (segments.length === 0) return null;
+
+  return (
+    <>
+      <audio ref={audioRef} preload="metadata" />
+      <button
+        type="button"
+        onClick={togglePlayback}
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[rgb(var(--border))] bg-white px-4 text-sm font-semibold text-[rgb(var(--foreground))] shadow-sm transition-all hover:bg-[rgb(var(--surface-elevated))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))]"
+      >
+        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+        {playing ? `Играет ${currentIndex + 1}/${segments.length}` : label}
+      </button>
+    </>
+  );
+}
+
 type Phase = "landing" | "intro" | "prep" | "recording" | "recorded" | "loading" | "feedback";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -215,7 +407,6 @@ type Topic = {
 };
 
 function SpeakingTestPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const selectedTopicId = searchParams.get("id");
   const selectedPart = Number(searchParams.get("part"));
@@ -235,6 +426,16 @@ function SpeakingTestPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [micDenied, setMicDenied] = useState(false);
   const [showSample, setShowSample] = useState(false);
+  const [inlineAi, setInlineAi] = useState<InlineAiState>({
+    open: false,
+    title: "",
+    prompt: "",
+    answer: "",
+    loading: false,
+    error: null,
+  });
+  const [recordedAudioUrls, setRecordedAudioUrls] = useState<RecordedAudioUrls>({});
+  const [recordedAudioSegments, setRecordedAudioSegments] = useState<RecordedAudioSegments>({});
   // "full" = all 3 parts, "single" = only the selected part
   const [mode, setMode] = useState<"full" | "single">("full");
 
@@ -242,11 +443,16 @@ function SpeakingTestPageContent() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const lastAudioBlobRef = useRef<Blob | null>(null);
+  const recordedAudioUrlsRef = useRef<RecordedAudioUrls>({});
+  const recordedAudioSegmentsRef = useRef<RecordedAudioSegments>({});
+  const recordedSegmentBlobsRef = useRef<RecordedSegmentBlobs>({});
   // Per-part audio recordings. Indexed by partIdx (0 = Part 1, 1 = Part 2, 2 = Part 3).
   // The previous bug sent only Part 2 for evaluation; Parts 1 and 3 were
   // recorded but discarded. We now collect everything and submit all three.
   const recordingsRef = useRef<Record<number, Blob>>({});
   const currentPartIdxRef = useRef(0);
+  const currentQuestionIdxRef = useRef(0);
+  const recordingStartedAtRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
 
   // Part 2 has a hard 2-minute cap in real IELTS — examiner stops the candidate.
@@ -392,6 +598,9 @@ function SpeakingTestPageContent() {
 
   // Keep currentPartIdxRef in sync so MediaRecorder.onstop knows which part the recording belongs to.
   useEffect(() => { currentPartIdxRef.current = partIdx; }, [partIdx]);
+  useEffect(() => { currentQuestionIdxRef.current = questionIdx; }, [questionIdx]);
+  useEffect(() => { recordedAudioUrlsRef.current = recordedAudioUrls; }, [recordedAudioUrls]);
+  useEffect(() => { recordedAudioSegmentsRef.current = recordedAudioSegments; }, [recordedAudioSegments]);
 
   // Auto-speak question when entering intro phase (simulates examiner)
   useEffect(() => {
@@ -430,6 +639,8 @@ function SpeakingTestPageContent() {
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (timerRef.current) clearInterval(timerRef.current);
+      Object.values(recordedAudioUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+      Object.values(recordedAudioSegmentsRef.current).flat().forEach((segment) => URL.revokeObjectURL(segment.url));
     };
   }, []);
 
@@ -465,6 +676,51 @@ function SpeakingTestPageContent() {
   }, [phase]);
 
   // ── MediaRecorder helpers ──
+  function resetRecordings() {
+    Object.values(recordedAudioUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+    Object.values(recordedAudioSegmentsRef.current).flat().forEach((segment) => URL.revokeObjectURL(segment.url));
+    recordedAudioUrlsRef.current = {};
+    recordedAudioSegmentsRef.current = {};
+    setRecordedAudioUrls({});
+    setRecordedAudioSegments({});
+    recordingsRef.current = {};
+    recordedSegmentBlobsRef.current = {};
+    lastAudioBlobRef.current = null;
+  }
+
+  function discardCurrentRecording() {
+    const currentIdx = currentPartIdxRef.current;
+    const currentQuestionIdx = currentQuestionIdxRef.current;
+    setRecordedAudioUrls((prev) => {
+      const existing = prev[currentIdx];
+      if (existing) URL.revokeObjectURL(existing);
+      const next = { ...prev };
+      delete next[currentIdx];
+      return next;
+    });
+    setRecordedAudioSegments((prev) => {
+      const removed = prev[currentIdx]?.find((segment) => segment.questionIndex === currentQuestionIdx);
+      if (removed) URL.revokeObjectURL(removed.url);
+      const remaining = (prev[currentIdx] ?? []).filter((segment) => segment.questionIndex !== currentQuestionIdx);
+      return { ...prev, [currentIdx]: remaining };
+    });
+    if (recordedSegmentBlobsRef.current[currentIdx]) {
+      delete recordedSegmentBlobsRef.current[currentIdx][currentQuestionIdx];
+    }
+    delete recordingsRef.current[currentIdx];
+    const remainingBlobs = Object.entries(recordedSegmentBlobsRef.current[currentIdx] ?? {})
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([, blob]) => blob);
+    if (remainingBlobs.length > 0) {
+      recordingsRef.current[currentIdx] = new Blob(remainingBlobs, { type: remainingBlobs[0].type || "audio/webm" });
+      setRecordedAudioUrls((prev) => ({
+        ...prev,
+        [currentIdx]: URL.createObjectURL(recordingsRef.current[currentIdx]),
+      }));
+    }
+    lastAudioBlobRef.current = null;
+  }
+
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -485,11 +741,38 @@ function SpeakingTestPageContent() {
         const blob = new Blob(audioChunksRef.current, { type: mimeType || "audio/webm" });
         lastAudioBlobRef.current = blob;
         // Save under the part we just recorded, so all 3 parts contribute to evaluation.
-        recordingsRef.current[currentPartIdxRef.current] = blob;
+        const stoppedPartIdx = currentPartIdxRef.current;
+        const stoppedQuestionIdx = currentQuestionIdxRef.current;
+        const duration = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
+        recordedSegmentBlobsRef.current[stoppedPartIdx] = {
+          ...(recordedSegmentBlobsRef.current[stoppedPartIdx] ?? {}),
+          [stoppedQuestionIdx]: blob,
+        };
+        const orderedQuestionBlobs = Object.entries(recordedSegmentBlobsRef.current[stoppedPartIdx])
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([, item]) => item);
+        const combinedPartBlob = new Blob(orderedQuestionBlobs, { type: orderedQuestionBlobs[0]?.type || "audio/webm" });
+        recordingsRef.current[stoppedPartIdx] = combinedPartBlob;
+        const segmentUrl = URL.createObjectURL(blob);
+        setRecordedAudioUrls((prev) => {
+          const existing = prev[stoppedPartIdx];
+          if (existing) URL.revokeObjectURL(existing);
+          return { ...prev, [stoppedPartIdx]: URL.createObjectURL(combinedPartBlob) };
+        });
+        setRecordedAudioSegments((prev) => {
+          const existing = prev[stoppedPartIdx]?.find((segment) => segment.questionIndex === stoppedQuestionIdx);
+          if (existing) URL.revokeObjectURL(existing.url);
+          const nextSegments = [
+            ...(prev[stoppedPartIdx] ?? []).filter((segment) => segment.questionIndex !== stoppedQuestionIdx),
+            { questionIndex: stoppedQuestionIdx, url: segmentUrl, duration },
+          ].sort((a, b) => a.questionIndex - b.questionIndex);
+          return { ...prev, [stoppedPartIdx]: nextSegments };
+        });
         stream.getTracks().forEach((t) => t.stop());
       };
       mr.start(250);
       mediaRecorderRef.current = mr;
+      recordingStartedAtRef.current = Date.now();
       setIsRecording(true);
       setRecordTime(0);
     } catch {
@@ -525,6 +808,80 @@ function SpeakingTestPageContent() {
     }
   }
 
+  async function askInlineAi({ title, prompt }: { title: string; prompt: string }) {
+    if (inlineAi.loading) return;
+
+    setInlineAi({
+      open: true,
+      title,
+      prompt,
+      answer: "",
+      loading: true,
+      error: null,
+    });
+
+    try {
+      const res = await fetch("/api/ai/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+        }),
+      });
+
+      if (res.status === 401) {
+        setInlineAi((prev) => ({
+          ...prev,
+          loading: false,
+          error: "Чтобы спросить ИИ, войдите в аккаунт.",
+        }));
+        return;
+      }
+
+      if (res.status === 403 || res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        setInlineAi((prev) => ({
+          ...prev,
+          loading: false,
+          error: data.message ?? "AI-тьютор доступен только по подписке Pro.",
+        }));
+        return;
+      }
+
+      if (!res.ok) throw new Error("AI tutor error");
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let answer = "";
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          answer += decoder.decode(value, { stream: true });
+          setInlineAi((prev) => ({ ...prev, answer, loading: true }));
+        }
+      }
+
+      setInlineAi((prev) => ({
+        ...prev,
+        answer: answer || "ИИ не вернул ответ. Попробуйте ещё раз.",
+        loading: false,
+      }));
+    } catch {
+      setInlineAi((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Не удалось получить ответ ИИ. Попробуйте ещё раз.",
+      }));
+    }
+  }
+
   // ── Submit to API ──
   // Combines all recorded parts into one audio blob and one combined topic
   // prompt so the AI evaluates the FULL session, not just Part 2.
@@ -541,7 +898,9 @@ function SpeakingTestPageContent() {
       // as the first part's header is valid. If any part is missing we just
       // skip it.
       const orderedParts = [0, 1, 2]
-        .map((i) => recordingsRef.current[i])
+        .flatMap((partIndex) => Object.entries(recordedSegmentBlobsRef.current[partIndex] ?? {})
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([, blob]) => blob))
         .filter((b): b is Blob => b instanceof Blob && b.size > 0);
 
       // If absolutely nothing was recorded, fall back to lastAudioBlobRef
@@ -597,9 +956,11 @@ function SpeakingTestPageContent() {
       <SpeakingReportV2
         feedback={feedback}
         topics={topics}
+        audioUrls={recordedAudioUrls}
+        audioSegments={recordedAudioSegments}
         showSample={showSample}
         setShowSample={setShowSample}
-        onRetry={() => { setFeedback(null); setPhase("landing"); setPartIdx(0); setQuestionIdx(0); setMode("full"); recordingsRef.current = {}; }}
+        onRetry={() => { setFeedback(null); setPhase("landing"); setPartIdx(0); setQuestionIdx(0); setMode("full"); resetRecordings(); }}
       />
     );
   }
@@ -622,6 +983,8 @@ function SpeakingTestPageContent() {
   // ── Test UI ──
   const currentQuestions = part?.questions as string[] | undefined;
   const cuePoints = part?.cue_card_points as string[] | undefined;
+  const currentAudioUrl = recordedAudioUrls[partIdx];
+  const currentSegmentAudioUrl = recordedAudioSegments[partIdx]?.find((segment) => segment.questionIndex === questionIdx)?.url ?? currentAudioUrl;
 
   // ── LANDING phase (pre-test) ──
   if (phase === "landing") {
@@ -676,7 +1039,7 @@ function SpeakingTestPageContent() {
             </div>
 
             <button
-              onClick={() => { setMode("full"); setPartIdx(0); setQuestionIdx(0); recordingsRef.current = {}; setPhase("intro"); }}
+              onClick={() => { setMode("full"); setPartIdx(0); setQuestionIdx(0); resetRecordings(); setPhase("intro"); }}
               className="w-full bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary)/0.92)] text-white font-semibold py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md shadow-[rgb(var(--primary)/0.25)]"
             >
               Начать тест Speaking
@@ -692,7 +1055,7 @@ function SpeakingTestPageContent() {
               {[0, 1, 2].map((i) => (
                 <button
                   key={i}
-                  onClick={() => { setMode("single"); setPartIdx(i); setQuestionIdx(0); recordingsRef.current = {}; setPhase("intro"); }}
+                  onClick={() => { setMode("single"); setPartIdx(i); setQuestionIdx(0); resetRecordings(); setPhase("intro"); }}
                   className="rounded-xl border border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.4)] hover:bg-[rgb(var(--primary)/0.03)] py-2.5 px-3 text-sm font-medium text-[rgb(var(--foreground))] transition-all"
                 >
                   Part {i + 1}
@@ -739,6 +1102,63 @@ function SpeakingTestPageContent() {
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700 text-center">{error}</div>
       )}
 
+      {inlineAi.open && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-3 sm:items-center sm:p-6">
+          <div className="flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-2xl">
+            <div className="flex items-start gap-3 border-b border-[rgb(var(--border))] px-5 py-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                <MessageCircle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-[rgb(var(--foreground))]">AI-помощник внутри Speaking</div>
+                <div className="mt-0.5 truncate text-xs text-[rgb(var(--muted-foreground))]">{inlineAi.title}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInlineAi((prev) => ({ ...prev, open: false }))}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[rgb(var(--muted-foreground))] transition-colors hover:bg-[rgb(var(--surface-elevated))] hover:text-[rgb(var(--foreground))]"
+                aria-label="Закрыть AI-помощник"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="mb-4 rounded-xl bg-[rgb(var(--surface-elevated))] p-3 text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+                {inlineAi.prompt}
+              </div>
+
+              {inlineAi.error ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-800">
+                  {inlineAi.error}
+                </div>
+              ) : (
+                <div className="min-h-32 whitespace-pre-wrap rounded-xl border border-violet-100 bg-violet-50/60 p-4 text-sm leading-relaxed text-[rgb(var(--foreground))]">
+                  {inlineAi.answer}
+                  {inlineAi.loading && (
+                    <span className="ml-1 inline-flex items-center gap-1 text-[rgb(var(--muted-foreground))]">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Думаю...
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-[rgb(var(--border))] px-5 py-3">
+              <p className="text-xs text-[rgb(var(--muted-foreground))]">Тест не закрывается, можно продолжить после подсказки.</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setInlineAi((prev) => ({ ...prev, open: false }))}
+              >
+                Вернуться к тесту
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-lg flex flex-col gap-6">
           <div className="text-center">
@@ -759,17 +1179,17 @@ function SpeakingTestPageContent() {
                   </span>
                   <span className="text-xs text-[rgb(var(--muted-foreground))]">из {currentQuestions.length} вопросов</span>
                   <div className="ml-auto flex items-center gap-1.5">
-                    <SpeakButton text={currentQuestions[questionIdx]} />
-                    <button
-                      onClick={() => {
-                        const q = currentQuestions[questionIdx];
-                        const params = new URLSearchParams({
-                          q: `Помоги подготовиться к Speaking Part ${part.part}, вопрос: "${q}". Подскажи структуру ответа, ключевую лексику, и пример сильного ответа.`,
-                        });
-                        router.push(`/tutor?${params.toString()}`);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-                    >
+	                    <SpeakButton text={currentQuestions[questionIdx]} />
+	                    <button
+	                      onClick={() => {
+	                        const q = currentQuestions[questionIdx];
+	                        void askInlineAi({
+	                          title: `Speaking Part ${part.part}: вопрос ${questionIdx + 1}`,
+	                          prompt: `Помоги подготовиться к IELTS Speaking Part ${part.part}. Вопрос: "${q}". Дай ответ на русском: 1) как структурировать ответ, 2) 5 полезных English phrases, 3) пример сильного ответа Band 7+. Пиши кратко и по делу.`,
+	                        });
+	                      }}
+	                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+	                    >
                       <MessageCircle className="w-3 h-3" />
                       Спросить ИИ
                     </button>
@@ -789,16 +1209,16 @@ function SpeakingTestPageContent() {
                     <BookOpen className="w-4 h-4 text-[rgb(var(--primary))]" />
                     <span className="text-xs font-semibold text-[rgb(var(--primary))] uppercase tracking-wide">Cue Card</span>
                     <div className="ml-auto flex items-center gap-1.5">
-                      <SpeakButton text={`${part.topic_text ?? ""}. You should say: ${cuePoints?.join(". ") ?? ""}`} />
-                      <button
-                        onClick={() => {
-                          const params = new URLSearchParams({
-                            q: `Помоги с Speaking Part 2 cue card: "${part.topic_text}". Подскажи структуру 2-минутного монолога, ключевую лексику и пример идеи для каждого пункта.`,
-                          });
-                          router.push(`/tutor?${params.toString()}`);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-                      >
+	                      <SpeakButton text={`${part.topic_text ?? ""}. You should say: ${cuePoints?.join(". ") ?? ""}`} />
+	                      <button
+	                        onClick={() => {
+	                          void askInlineAi({
+	                            title: "Speaking Part 2: cue card",
+	                            prompt: `Помоги с IELTS Speaking Part 2 cue card: "${part.topic_text}". Bullet points: ${(cuePoints ?? []).join("; ")}. Дай ответ на русском: 1) структуру 2-минутного монолога, 2) идеи по каждому пункту, 3) 7 полезных English phrases, 4) пример начала ответа Band 7+.`,
+	                          });
+	                        }}
+	                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-50 border border-violet-200 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+	                      >
                         <MessageCircle className="w-3 h-3" />
                         Спросить ИИ
                       </button>
@@ -843,9 +1263,12 @@ function SpeakingTestPageContent() {
             )}
 
             {phase === "recorded" && (
-              <div className="flex items-center gap-2 text-[rgb(var(--success))]">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="text-sm font-medium">Записано ({mmss(recordTime)})</span>
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-2 text-[rgb(var(--success))]">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span className="text-sm font-medium">Записано ({mmss(recordTime)})</span>
+                </div>
+                <AudioPlaybackButton src={currentSegmentAudioUrl} compact />
               </div>
             )}
 
@@ -885,7 +1308,7 @@ function SpeakingTestPageContent() {
               {phase === "recorded" && (
                 <>
                   <Button size="lg" variant="outline" className="gap-2"
-                    onClick={() => { setPhase("intro"); setRecordTime(0); lastAudioBlobRef.current = null; }}>
+                    onClick={() => { discardCurrentRecording(); setPhase("intro"); setRecordTime(0); }}>
                     <RotateCcw className="w-4 h-4" />
                     Перезаписать
                   </Button>
@@ -991,6 +1414,11 @@ function categoryFilter(code: string, item: SpeakingFeedback["improvements"][num
 
 function cleanSpeakingText(text: string | null | undefined) {
   return (text ?? "").replace(/[“”"]/g, "").trim();
+}
+
+function formatClock(seconds: number) {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  return `${Math.floor(safeSeconds / 60)}:${String(safeSeconds % 60).padStart(2, "0")}`;
 }
 
 function splitTranscriptForParts(transcript: string, partCount: number) {
@@ -1221,22 +1649,119 @@ function getPartFeedback({
   };
 }
 
+type QuickReviewItem = Pick<SpeakingFeedback["improvements"][number], "issue" | "example" | "suggestion" | "correction" | "severity" | "from_band" | "to_band">;
+
+const QUICK_REVIEW_FALLBACKS: Record<"grammar" | "vocabulary", QuickReviewItem[]> = {
+  grammar: [
+    {
+      issue: "Расширить короткий ответ",
+      example: "I like it.",
+      correction: "I like it because it helps me relax after a busy day.",
+      suggestion: "Добавляйте reason + example, чтобы ответ звучал как IELTS Speaking, а не как one-word response.",
+      severity: "major",
+      from_band: 5,
+      to_band: 6,
+    },
+    {
+      issue: "Проверить past tense",
+      example: "Yesterday I go there.",
+      correction: "Yesterday I went there.",
+      suggestion: "Когда говорите о прошлом опыте, держите past simple под контролем.",
+      severity: "major",
+    },
+    {
+      issue: "Добавить article",
+      example: "I visited museum.",
+      correction: "I visited a museum.",
+      suggestion: "Перед singular countable nouns чаще всего нужен a/an или the.",
+    },
+    {
+      issue: "Subject-verb agreement",
+      example: "People likes it.",
+      correction: "People like it.",
+      suggestion: "Проверяйте форму глагола после people, they, many students, my friends.",
+    },
+    {
+      issue: "Добавить complex sentence",
+      example: "It is useful. I use it every day.",
+      correction: "It is useful because I use it every day when I study or work.",
+      suggestion: "Используйте because, although, which, when, so that для роста Grammatical Range.",
+      from_band: 5,
+      to_band: 6,
+    },
+  ],
+  vocabulary: [
+    {
+      issue: "Заменить basic adjective",
+      example: "good",
+      correction: "beneficial / valuable / practical",
+      suggestion: "Выбирайте слово под смысл: beneficial для пользы, practical для удобства, valuable для ценности.",
+      from_band: 5,
+      to_band: 6,
+    },
+    {
+      issue: "Сделать лексику точнее",
+      example: "interesting",
+      correction: "engaging / thought-provoking / memorable",
+      suggestion: "Точные прилагательные звучат естественнее и показывают диапазон словаря.",
+    },
+    {
+      issue: "Убрать размытость",
+      example: "many things",
+      correction: "a wide range of activities / opportunities / responsibilities",
+      suggestion: "Заменяйте vague phrases на конкретные collocations по теме.",
+      severity: "major",
+    },
+    {
+      issue: "Усилить важность",
+      example: "very important",
+      correction: "essential / crucial / highly significant",
+      suggestion: "Не злоупотребляйте very: IELTS выше оценивает precise vocabulary.",
+    },
+    {
+      issue: "Добавить natural collocation",
+      example: "do progress",
+      correction: "make progress",
+      suggestion: "Учите слова сразу в связках: make progress, gain experience, develop a habit.",
+      from_band: 5,
+      to_band: 7,
+    },
+  ],
+};
+
+function ensureQuickReviewItems(items: QuickReviewItem[], fallback: QuickReviewItem[]) {
+  const seen = new Set<string>();
+  return [...items, ...fallback].filter((item) => {
+    const key = `${item.issue}|${item.example}|${item.correction ?? item.suggestion}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 5);
+}
+
 // ─── Speaking Report ─────────────────────────────────────────────────────────
 
 function SpeakingReportV2({
   feedback,
   topics,
+  audioUrls,
+  audioSegments,
   showSample,
   setShowSample,
   onRetry,
 }: {
   feedback: SpeakingFeedback;
   topics: Topic[];
+  audioUrls: RecordedAudioUrls;
+  audioSegments: RecordedAudioSegments;
   showSample: boolean;
   setShowSample: (v: boolean) => void;
   onRetry: () => void;
 }) {
-  const [activePart, setActivePart] = useState(0);
+  const [activePart, setActivePart] = useState(() => {
+    const firstRecordedPart = Number(Object.keys(audioUrls)[0]);
+    return Number.isFinite(firstRecordedPart) ? firstRecordedPart : 0;
+  });
   const [answerView, setAnswerView] = useState<"original" | "feedback">("feedback");
   const [analysisTab, setAnalysisTab] = useState<SpeakingAnalysisTab>("fluency");
 
@@ -1244,10 +1769,14 @@ function SpeakingReportV2({
   const cefr = bandToCEFR(overall);
   const wordCount = feedback.transcript?.split(/\s+/).filter(Boolean).length ?? 0;
   const visibleTopics = topics.length > 0 ? topics : (FALLBACK_TOPICS as Topic[]);
+  const activePartIndex = Math.min(activePart, visibleTopics.length - 1);
   const transcriptParts = splitTranscriptForParts(feedback.transcript, visibleTopics.length);
-  const activeTopic = visibleTopics[Math.min(activePart, visibleTopics.length - 1)];
+  const activeTopic = visibleTopics[activePartIndex];
   const activePartNumber = activeTopic?.part ?? activePart + 1;
-  const activeTranscript = transcriptParts[Math.min(activePart, transcriptParts.length - 1)] || feedback.transcript;
+  const activeTranscript = transcriptParts[Math.min(activePartIndex, transcriptParts.length - 1)] || feedback.transcript;
+  const activeAudioUrl = audioUrls[activePart] ?? audioUrls[activePartIndex] ?? audioUrls[(activeTopic?.part ?? activePart + 1) - 1] ?? null;
+  const activeSegments = audioSegments[activePart] ?? audioSegments[activePartIndex] ?? audioSegments[(activeTopic?.part ?? activePart + 1) - 1] ?? [];
+  const activeDuration = activeSegments.reduce((sum, segment) => sum + segment.duration, 0) || (activePartNumber === 2 ? 120 : 15);
   const wpm = speakingSpeed(wordCount, visibleTopics.length);
   const hesitationCount = Math.max(0, (feedback.transcript.match(/\b(um|uh|er|like|you know)\b/gi) ?? []).length);
   const fillerCount = Math.max(0, (feedback.transcript.match(/\b(so|actually|basically|well)\b/gi) ?? []).length);
@@ -1286,6 +1815,18 @@ function SpeakingReportV2({
   const grammarFixes = feedback.improvements.filter((imp) => categoryFilter("GRA", imp));
   const vocabFixes = feedback.improvements.filter((imp) => categoryFilter("LR", imp));
   const pronunciationFixes = feedback.improvements.filter((imp) => categoryFilter("PR", imp));
+  const grammarQuickItems = ensureQuickReviewItems(grammarFixes, QUICK_REVIEW_FALLBACKS.grammar);
+  const vocabularyQuickItems = ensureQuickReviewItems(
+    vocabFixes.length
+      ? vocabFixes
+      : feedback.model_phrases.map((phrase) => ({
+        issue: "Улучшить лексику",
+        example: "basic phrase",
+        correction: phrase,
+        suggestion: "Используйте эту фразу в похожем ответе.",
+      })),
+    QUICK_REVIEW_FALLBACKS.vocabulary,
+  );
   const recommendations = feedback.improvements.length > 0
     ? feedback.improvements.map((imp) => imp.suggestion)
     : [
@@ -1302,6 +1843,7 @@ function SpeakingReportV2({
     buildFallbackDetail({ tab: analysisTab, criterion: activeCriterion, transcript: activeTranscript, wpm, hesitationCount, fillerCount }),
   );
   const visibleImprovements = activeImprovements.length ? activeImprovements : buildFallbackImprovements(analysisTab, activeTranscript);
+  const answerFeedbackItems = (feedback.improvements.length ? feedback.improvements : visibleImprovements).slice(0, 5);
   const partFeedback = getPartFeedback({ feedback, partNumber: activePartNumber, topic: activeTopic, transcript: activeTranscript });
 
   async function shareReport() {
@@ -1396,8 +1938,8 @@ function SpeakingReportV2({
         <section>
           <h2 className="mb-5 text-2xl font-bold text-[rgb(var(--foreground))]">Быстрый обзор</h2>
           <div className="grid gap-5 lg:grid-cols-3">
-            <QuickReviewCard title="Грамматика" color="#EF4444" items={grammarFixes} empty="Критичных грамматических правок не найдено." />
-            <QuickReviewCard title="Лексика" color="#F59E0B" items={vocabFixes.length ? vocabFixes : feedback.model_phrases.map((phrase) => ({ issue: "Улучшить лексику", example: "basic phrase", correction: phrase, suggestion: "Используйте эту фразу в похожем ответе." }))} empty="Добавьте больше точной тематической лексики." />
+            <QuickReviewCard title="Грамматика" color="#EF4444" items={grammarQuickItems} empty="Критичных грамматических правок не найдено." />
+            <QuickReviewCard title="Лексика" color="#F59E0B" items={vocabularyQuickItems} empty="Добавьте больше точной тематической лексики." />
             <PronunciationReviewCard items={pronunciationFixes} />
           </div>
         </section>
@@ -1413,23 +1955,30 @@ function SpeakingReportV2({
                   onClick={() => setActivePart(index)}
                   className={cn(
                     "border-b-2 px-4 py-4 text-base transition-colors",
-                    activePart === index ? "border-[#1473E6] text-[rgb(var(--foreground))]" : "border-transparent text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
+                    activePartIndex === index ? "border-[#1473E6] text-[rgb(var(--foreground))]" : "border-transparent text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
                   )}
                 >
-                  Part {topic.part ?? index + 1} <span className="text-sm text-[rgb(var(--muted-foreground))]">{index === 1 ? "120с" : "15с"}</span>
+                  Part {topic.part ?? index + 1} <span className="text-sm text-[rgb(var(--muted-foreground))]">{formatClock((audioSegments[index] ?? []).reduce((sum, segment) => sum + segment.duration, 0) || (index === 1 ? 120 : 15))}</span>
                 </button>
               ))}
             </div>
 
-            <div className="flex items-center gap-4 border-b border-[rgb(var(--border))] px-6 py-4">
-              <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1473E6] text-white">
-                <Play className="h-5 w-5 fill-current" />
-              </button>
-              <span className="font-mono text-sm text-[rgb(var(--muted-foreground))]">0:00</span>
-              <div className="h-2 flex-1 rounded-full bg-blue-100">
-                <div className="h-full w-1/4 rounded-full bg-blue-300" />
+            <div className="flex flex-col gap-3 border-b border-[rgb(var(--border))] px-6 py-4 sm:flex-row sm:items-center">
+              {activeSegments.length > 1 ? (
+                <AudioSequencePlaybackButton segments={activeSegments} label={`Прослушать Part ${activePartNumber}`} />
+              ) : (
+                <AudioPlaybackButton src={activeAudioUrl} label={`Прослушать Part ${activePartNumber}`} />
+              )}
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <span className="font-mono text-sm text-[rgb(var(--muted-foreground))]">0:00</span>
+                <div className="h-2 flex-1 rounded-full bg-blue-100">
+                  <div className="h-full w-1/4 rounded-full bg-blue-300" />
+                </div>
+                <span className="font-mono text-sm text-[rgb(var(--muted-foreground))]">{formatClock(activeDuration)}</span>
               </div>
-              <span className="font-mono text-sm text-[rgb(var(--muted-foreground))]">{activePart === 1 ? "2:00" : "0:15"}</span>
+              {!activeAudioUrl && (
+                <span className="text-xs font-medium text-[rgb(var(--muted-foreground))]">Запись этой части недоступна.</span>
+              )}
             </div>
 
             <div className="grid lg:grid-cols-[1fr_1fr]">
@@ -1457,20 +2006,60 @@ function SpeakingReportV2({
                 </div>
 
                 <div className="flex flex-col gap-5">
-                  {(activeTopic?.questions ?? [activeTopic?.topic_text].filter(Boolean) as string[]).slice(0, 5).map((question, index) => (
-                    <div key={`${question}-${index}`} className="flex flex-col gap-2">
-                      <p className="text-base italic leading-relaxed text-indigo-500">{question}</p>
-                      <div className="flex items-center gap-2 text-sm text-[rgb(var(--muted-foreground))]">
-                        <button type="button" className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-blue-500">
-                          <Play className="h-3 w-3 fill-current" />
-                        </button>
-                        <span className="font-mono">0:{String(index * 3).padStart(2, "0")} - 0:{String(index * 3 + 2).padStart(2, "0")}</span>
+                  {(activeTopic?.questions ?? [activeTopic?.topic_text].filter(Boolean) as string[]).slice(0, 5).map((question, index) => {
+                    const segment = activeSegments.find((item) => item.questionIndex === index);
+                    const start = activeSegments
+                      .filter((item) => item.questionIndex < index)
+                      .reduce((sum, item) => sum + item.duration, 0);
+                    const end = segment ? start + segment.duration : start + 2;
+                    return (
+                      <div key={`${question}-${index}`} className="flex flex-col gap-2">
+                        <p className="text-base italic leading-relaxed text-indigo-500">{question}</p>
+                        <div className="flex items-center gap-2 text-sm text-[rgb(var(--muted-foreground))]">
+                          <AudioPlaybackButton
+                            src={segment?.url ?? activeAudioUrl}
+                            label={`Прослушать ответ ${index + 1}`}
+                            iconOnly
+                          />
+                          <span className="font-mono">{formatClock(start)} - {formatClock(end)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {answerView === "original" ? (
+                    <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] p-5">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--muted-foreground))]">Оригинальный транскрипт</div>
+                      <p className="whitespace-pre-wrap text-lg leading-relaxed text-[rgb(var(--foreground))]">
+                        {activeTranscript || "Транскрипт недоступен."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-5">
+                      <div className="mb-3 flex items-center gap-2">
+                        <MessageCircle className="h-4 w-4 text-violet-600" />
+                        <div className="text-sm font-semibold text-[rgb(var(--foreground))]">Feedback по ответу</div>
+                      </div>
+                      <p className="whitespace-pre-wrap text-base leading-relaxed text-[rgb(var(--foreground))]">
+                        {activeTranscript || "Транскрипт недоступен."}
+                      </p>
+                      <div className="mt-4 flex flex-col gap-3">
+                        {answerFeedbackItems.map((item, index) => {
+                          const example = cleanSpeakingText(item.example);
+                          const correction = cleanSpeakingText(item.correction) || item.suggestion;
+                          return (
+                            <div key={`${item.issue}-${index}`} className="rounded-xl bg-white p-3 text-sm shadow-sm">
+                              <div className="font-semibold text-[rgb(var(--foreground))]">{item.issue}</div>
+                              <div className="mt-1 leading-relaxed">
+                                {example && <span className="text-rose-600 line-through decoration-2">{example}</span>}
+                                {example && <span className="mx-1 text-[rgb(var(--muted-foreground))]">→</span>}
+                                <span className="text-emerald-700">{correction}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))}
-                  <p className={cn("whitespace-pre-wrap text-lg leading-relaxed", answerView === "feedback" ? "text-[rgb(var(--foreground))]" : "text-[rgb(var(--muted-foreground))]")}>
-                    {activeTranscript || "Транскрипт недоступен."}
-                  </p>
+                  )}
                   <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <h4 className="font-semibold text-[rgb(var(--foreground))]">{partFeedback.title}</h4>
@@ -1546,7 +2135,7 @@ function SpeakingReportV2({
                   wpm={wpm}
                   hesitationCount={hesitationCount}
                   fillerCount={fillerCount}
-                  duration={activePart === 1 ? 120 : 15}
+                  duration={activePartNumber === 2 ? 120 : 15}
                   partIssues={partFeedback.issues}
                 />
               </div>
@@ -1790,7 +2379,16 @@ function PronunciationReviewCard({ items }: { items: SpeakingFeedback["improveme
     { word: "we", sound: "/wiː/" },
     { word: "just", sound: "/dʒʌst/" },
     { word: "have", sound: "/hæv/" },
+    { word: "because", sound: "/bɪˈkɒz/" },
   ];
+  const reviewItems = items.map((item) => ({
+    word: cleanSpeakingText(item.example || item.issue),
+    sound: item.correction || item.suggestion,
+  })).filter((item) => item.word && item.sound);
+  const visibleItems = [...reviewItems, ...fallback]
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.word === item.word) === index)
+    .slice(0, 5);
+
   return (
     <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-sm">
       <div className="mb-5 flex items-center gap-3">
@@ -1798,7 +2396,7 @@ function PronunciationReviewCard({ items }: { items: SpeakingFeedback["improveme
         <h3 className="text-lg font-semibold text-[rgb(var(--foreground))]">Произношение</h3>
       </div>
       <div className="flex flex-col gap-3">
-        {(items.length > 0 ? items.slice(0, 5).map((item) => ({ word: cleanSpeakingText(item.example || item.issue), sound: item.correction || item.suggestion })) : fallback).map((item, index) => (
+        {visibleItems.map((item, index) => (
           <div key={index} className="flex items-center justify-between gap-4">
             <span className="text-base text-[rgb(var(--foreground))]">{item.word}</span>
             <div className="flex items-center gap-3">

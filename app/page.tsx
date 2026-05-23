@@ -17,6 +17,7 @@ import {
   Star,
   Users,
   Clock,
+  ChevronDown,
 } from "lucide-react";
 
 // ─── Static data ────────────────────────────────────────────────────────────
@@ -110,6 +111,22 @@ const FAQ = [
   },
 ];
 
+// ─── Interactive FAQ item ────────────────────────────────────────────────────
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  return (
+    <details className="group" name="faq">
+      <summary className="flex items-center justify-between cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden">
+        <h3 className="font-semibold text-[rgb(var(--foreground))] pr-4">{q}</h3>
+        <ChevronDown className="w-5 h-5 text-[rgb(var(--muted-foreground))] shrink-0 transition-transform duration-300 group-open:rotate-180" />
+      </summary>
+      <div className="px-5 pb-5 -mt-1">
+        <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">{a}</p>
+      </div>
+    </details>
+  );
+}
+
 // ─── Skill card for hero ─────────────────────────────────────────────────────
 
 function SkillCard({
@@ -126,8 +143,8 @@ function SkillCard({
   iconColor: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl p-6 sm:p-7 flex flex-col items-center text-center shadow-xl shadow-black/10">
-      <div className={`w-14 h-14 rounded-xl ${iconBg} flex items-center justify-center mb-4`}>
+    <div className="group bg-white rounded-2xl p-6 sm:p-7 flex flex-col items-center text-center shadow-xl shadow-black/10 hover:-translate-y-1 hover:shadow-2xl transition-all duration-300">
+      <div className={`w-14 h-14 rounded-xl ${iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
         <Icon className={`w-7 h-7 ${iconColor}`} strokeWidth={2} />
       </div>
       <h3 className="font-bold text-[rgb(var(--foreground))] text-base mb-1">{title}</h3>
@@ -197,29 +214,29 @@ export default async function LandingPage({
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             {/* Left: copy */}
             <div className="text-white">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-[1.05] tracking-tight mb-6">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-[1.05] tracking-tight mb-6 animate-slide-up">
                 Сдай IELTS на{" "}
                 <span className="block sm:inline text-[#B8A9FF]">нужный балл</span>{" "}
                 <span className="block sm:inline">с первого раза</span>
               </h1>
 
-              <p className="text-lg sm:text-xl text-white/80 leading-relaxed mb-8 max-w-lg">
+              <p className="text-lg sm:text-xl text-white/80 leading-relaxed mb-8 max-w-lg animate-slide-up delay-200">
                 Достигни цели с моментальной точной оценкой и персональным
                 отслеживанием прогресса.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 mb-10">
+              <div className="flex flex-col sm:flex-row gap-3 mb-10 animate-slide-up delay-300">
                 <Link
                   href="/diagnostic"
-                  className="inline-flex items-center justify-center gap-2 bg-white text-[#3B1E91] font-semibold text-base px-7 py-4 rounded-xl hover:bg-white/95 transition-colors shadow-xl shadow-black/10"
+                  className="group inline-flex items-center justify-center gap-2 bg-white text-[#3B1E91] font-semibold text-base px-7 py-4 rounded-xl hover:bg-white/95 transition-all shadow-xl shadow-black/10 hover:shadow-2xl hover:shadow-black/20 hover:-translate-y-0.5 active:translate-y-0"
                 >
                   Узнай свой балл бесплатно
-                  <ChevronRight className="w-5 h-5" />
+                  <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </div>
 
               {/* Trust card */}
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 max-w-md">
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 max-w-md animate-fade-in delay-500">
                 <div className="grid grid-cols-2 gap-y-2 gap-x-6 mb-3">
                   <div className="flex items-center gap-2 text-sm text-white/90">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#B8A9FF]" />
@@ -249,7 +266,7 @@ export default async function LandingPage({
             </div>
 
             {/* Right: 4 skill cards */}
-            <div className="grid grid-cols-2 gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 gap-4 sm:gap-5 stagger-children">
               <SkillCard icon={Mic2} title="Speaking" subtitle="2 бесплатных оценки в день" iconBg="bg-amber-100" iconColor="text-amber-500" />
               <SkillCard icon={PenLine} title="Writing" subtitle="2 бесплатных оценки в день" iconBg="bg-violet-100" iconColor="text-violet-500" />
               <SkillCard icon={Headphones} title="Listening" subtitle="Вопросы уровня Cambridge" iconBg="bg-green-100" iconColor="text-green-500" />
@@ -261,7 +278,7 @@ export default async function LandingPage({
 
       {/* ── STATS BAR ── */}
       <section className="border-y border-[rgb(var(--border))] bg-[rgb(var(--surface))]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 stagger-children">
           {[
             { icon: BookOpen, value: "750+", label: "Reading тестов" },
             { icon: Headphones, value: "38", label: "Listening тестов" },
@@ -294,34 +311,33 @@ export default async function LandingPage({
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-8 stagger-children">
             {[
               {
                 step: "01",
                 title: "Диагностика",
                 desc: "15-минутный тест без регистрации. Reading + Listening + Grammar. Сразу видишь свои слабые места.",
-                cta: null,
+                gradient: "from-violet-500 to-indigo-600",
               },
               {
                 step: "02",
                 title: "Практика",
                 desc: "Каждый день новые тесты из огромного банка. Алгоритм подбирает задания по слабым типам вопросов.",
-                cta: null,
+                gradient: "from-indigo-500 to-blue-600",
               },
               {
                 step: "03",
                 title: "AI-фидбек",
                 desc: "Отправляешь Writing/Speaking — получаешь оценку по всем критериям IELTS с конкретными улучшениями.",
-                cta: null,
+                gradient: "from-blue-500 to-teal-500",
               },
-            ].map(({ step, title, desc }) => (
-              <div key={step} className="relative">
+            ].map(({ step, title, desc, gradient }) => (
+              <div key={step} className="relative group">
                 {/* Step connector line (desktop) */}
                 <div className="hidden md:block absolute top-5 left-full w-full h-px bg-[rgb(var(--border))] -translate-x-1/2 last:hidden" />
                 <div className="flex flex-col gap-4">
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-mono font-bold text-white"
-                    style={{ background: "rgb(var(--primary))" }}
+                    className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center text-sm font-mono font-bold text-white shadow-lg shadow-violet-500/20 group-hover:scale-110 transition-transform duration-300`}
                   >
                     {step}
                   </div>
@@ -357,15 +373,15 @@ export default async function LandingPage({
             ))}
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children">
             {FEATURES.map(({ icon: Icon, title, description }) => (
               <Card
                 key={title}
-                className="group hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                className="group card-interactive"
               >
                 <CardContent className="p-6 flex flex-col gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-[rgb(var(--primary)/0.1)] flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-[rgb(var(--primary))]" />
+                  <div className="w-11 h-11 rounded-xl bg-[rgb(var(--primary)/0.1)] flex items-center justify-center group-hover:bg-[rgb(var(--primary))] transition-colors duration-300">
+                    <Icon className="w-5 h-5 text-[rgb(var(--primary))] group-hover:text-white transition-colors duration-300" />
                   </div>
                   <h3 className="font-semibold text-[rgb(var(--foreground))]">{title}</h3>
                   <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">
@@ -476,8 +492,9 @@ export default async function LandingPage({
       </section>
 
       {/* ── TELEGRAM CTA ── */}
-      <section className="bg-[#241682] py-10">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+      <section className="bg-gradient-to-r from-[#241682] via-[#2d1a9e] to-[#241682] py-10 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(34,158,217,0.15),transparent_60%)]" aria-hidden />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center relative">
           <h2 className="text-lg sm:text-xl font-bold text-white mb-2 leading-tight">
             Присоединяйся к ученикам, которые уже растут.
           </h2>
@@ -489,9 +506,9 @@ export default async function LandingPage({
             href="#"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-[#229ED9] hover:bg-[#1d8cc0] text-white font-semibold text-sm px-5 py-2.5 rounded-full transition-colors shadow-md shadow-[#229ED9]/30"
+            className="group inline-flex items-center gap-2 bg-[#229ED9] hover:bg-[#1d8cc0] text-white font-semibold text-sm px-5 py-2.5 rounded-full transition-all shadow-md shadow-[#229ED9]/30 hover:shadow-lg hover:shadow-[#229ED9]/40 hover:-translate-y-0.5 active:translate-y-0"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <svg className="w-4 h-4 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
               <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" />
             </svg>
             Вступить в Telegram
@@ -509,9 +526,9 @@ export default async function LandingPage({
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-6 stagger-children">
             {TESTIMONIALS.map(({ name, city, before, after, text }) => (
-              <Card key={name} className="flex flex-col gap-0">
+              <Card key={name} className="flex flex-col gap-0 card-interactive">
                 <CardContent className="p-6 flex flex-col gap-4 h-full">
                   {/* Band change */}
                   <div className="flex items-center gap-2">
@@ -566,12 +583,12 @@ export default async function LandingPage({
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-6 pt-5 max-w-4xl mx-auto">
             {PRICING_PLANS.map((plan) => (
-              <div key={plan.name} className="relative">
+              <div key={plan.name} className={plan.badge ? "relative z-10" : "relative"}>
                 {plan.badge && (
                   <div
-                    className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white whitespace-nowrap"
+                    className="absolute -top-3 left-1/2 z-20 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white whitespace-nowrap shadow-md"
                     style={{ background: "rgb(var(--secondary))" }}
                   >
                     {plan.badge}
@@ -650,13 +667,10 @@ export default async function LandingPage({
             </h2>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {FAQ.map(({ q, a }) => (
-              <Card key={q}>
-                <CardContent className="p-5">
-                  <h3 className="font-semibold text-[rgb(var(--foreground))] mb-2">{q}</h3>
-                  <p className="text-sm text-[rgb(var(--muted-foreground))] leading-relaxed">{a}</p>
-                </CardContent>
+              <Card key={q} className="overflow-hidden transition-shadow hover:shadow-md">
+                <FaqItem q={q} a={a} />
               </Card>
             ))}
           </div>
@@ -686,16 +700,19 @@ export default async function LandingPage({
           <p className="text-white/80 text-lg mb-8">
             15 минут диагностики и ты знаешь свой текущий уровень и что делать дальше.
           </p>
-          <Button
-            size="xl"
-            className="bg-white text-[rgb(var(--primary))] hover:bg-white/90 shadow-xl"
-            asChild
-          >
-            <Link href="/diagnostic">
-              Пройти бесплатную диагностику
-              <ChevronRight className="w-5 h-5" />
-            </Link>
-          </Button>
+          <div className="relative inline-block">
+            <div className="absolute -inset-1 bg-white/30 rounded-2xl blur-md animate-pulse" />
+            <Button
+              size="xl"
+              className="relative bg-white text-[rgb(var(--primary))] hover:bg-white/90 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all"
+              asChild
+            >
+              <Link href="/diagnostic">
+                Пройти бесплатную диагностику
+                <ChevronRight className="w-5 h-5" />
+              </Link>
+            </Button>
+          </div>
           <p className="text-white/60 text-sm mt-4">
             Регистрация после диагностики — никаких данных карты
           </p>
@@ -722,7 +739,7 @@ export default async function LandingPage({
             <ul className="flex flex-col gap-2 text-sm opacity-70">
               {["Тесты", "AI Writing", "AI Speaking", "Тарифы"].map((l) => (
                 <li key={l}>
-                  <Link href="#" className="hover:opacity-100 transition-opacity">
+                  <Link href="#" className="hover:opacity-100 hover:translate-x-0.5 transition-all inline-block">
                     {l}
                   </Link>
                 </li>
@@ -735,7 +752,7 @@ export default async function LandingPage({
               {["О нас", "Блог", "Контакты", "Политика конфиденциальности"].map(
                 (l) => (
                   <li key={l}>
-                    <Link href="#" className="hover:opacity-100 transition-opacity">
+                    <Link href="#" className="hover:opacity-100 hover:translate-x-0.5 transition-all inline-block">
                       {l}
                     </Link>
                   </li>

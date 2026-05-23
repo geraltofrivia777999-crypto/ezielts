@@ -7,7 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Eye, EyeOff, Mail, Lock, User, ChevronRight, Target, MailCheck, MessageCircle } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  User,
+  ChevronRight,
+  Target,
+  MailCheck,
+  MessageCircle,
+  Crown,
+  ClipboardCheck,
+  CalendarDays,
+  Bot,
+  BarChart3,
+  FileCheck2,
+  Sparkles,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const TARGET_BANDS = [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0];
@@ -19,7 +36,16 @@ const GOALS = [
   { value: "other", label: "🎯 Другое" },
 ];
 
-type Step = "account" | "onboarding" | "verify";
+type Step = "account" | "onboarding" | "verify" | "premium";
+
+const PREMIUM_BENEFITS = [
+  { icon: Crown, label: "Безлимитный доступ ко всем IELTS тестам" },
+  { icon: ClipboardCheck, label: "Диагностические тесты и точный стартовый уровень" },
+  { icon: CalendarDays, label: "Персональный AI-план подготовки под цель и дату экзамена" },
+  { icon: FileCheck2, label: "Writing и Speaking feedback с подробным разбором ошибок" },
+  { icon: Bot, label: "Персональный AI Tutor для вопросов и объяснений" },
+  { icon: BarChart3, label: "Отслеживание прогресса и слабых мест" },
+];
 
 export default function SignupPage() {
   const [step, setStep] = useState<Step>("account");
@@ -39,6 +65,9 @@ export default function SignupPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fromDiagnostic] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "diagnostic"
+  );
   const router = useRouter();
 
   async function handleAccountSubmit(e: React.FormEvent) {
@@ -103,24 +132,25 @@ export default function SignupPage() {
       return;
     }
 
-    // Otherwise (email confirmation disabled), session is set — go to dashboard
-    router.push("/dashboard");
+    // Otherwise (email confirmation disabled), session is set — show the upgrade prompt.
+    setStep("premium");
     router.refresh();
   }
 
   // ─── Step 1: Account ───────────────────────────────────────────────────────
   if (step === "account") {
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center p-4">
-        <Link href="/" className="flex items-center gap-2 mb-8">
+      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-violet-100/50 blur-3xl -translate-y-1/2" aria-hidden />
+        <Link href="/" className="flex items-center gap-2 mb-8 animate-fade-in">
           <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
             <span className="text-white font-bold text-sm">EZ</span>
           </div>
           <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ielts</span>
         </Link>
 
-        <div className="w-full max-w-sm">
-          <div className="bg-[rgb(var(--surface))] rounded-2xl border border-[rgb(var(--border))] shadow-sm p-8">
+        <div className="w-full max-w-sm animate-scale-in">
+          <div className="bg-[rgb(var(--surface))] rounded-2xl border border-[rgb(var(--border))] shadow-lg shadow-black/5 p-8">
             {/* Step indicator */}
             <div className="flex items-center gap-2 mb-6">
               <div className="flex items-center gap-1.5">
@@ -141,12 +171,19 @@ export default function SignupPage() {
             <h1 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-1">
               Создать аккаунт
             </h1>
-            <p className="text-sm text-[rgb(var(--muted-foreground))] mb-6">
-              Уже есть аккаунт?{" "}
-              <Link href="/login" className="text-[rgb(var(--primary))] font-medium hover:underline">
-                Войти
-              </Link>
-            </p>
+            {!fromDiagnostic && (
+              <p className="text-sm text-[rgb(var(--muted-foreground))] mb-6">
+                Уже есть аккаунт?{" "}
+                <Link href="/login" className="text-[rgb(var(--primary))] font-medium hover:underline">
+                  Войти
+                </Link>
+              </p>
+            )}
+            {fromDiagnostic && (
+              <p className="text-sm text-[rgb(var(--muted-foreground))] mb-6">
+                Создай аккаунт, чтобы сохранить диагностику и открыть персональный план.
+              </p>
+            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2 mb-2">
@@ -266,6 +303,50 @@ export default function SignupPage() {
                 Перейти ко входу
               </Button>
             </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 4: Premium prompt ───────────────────────────────────────────────
+  if (step === "premium") {
+    return (
+      <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center p-4">
+        <div className="w-full max-w-3xl rounded-3xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-2xl shadow-black/10 sm:p-10">
+          <div className="text-center">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgb(var(--primary)/0.1)]">
+              <Sparkles className="h-8 w-8 text-[rgb(var(--primary))]" />
+            </div>
+            <h1 className="text-2xl font-bold text-[rgb(var(--foreground))] sm:text-3xl">
+              Достигай нужного IELTS band быстрее с Pro
+            </h1>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
+              Аккаунт создан. Открой полный доступ к тестам, AI feedback, персональному плану и прогресс-трекеру.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-3">
+            {PREMIUM_BENEFITS.map(({ icon: Icon, label }) => (
+              <div
+                key={label}
+                className="flex items-center gap-4 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] px-4 py-4"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[rgb(var(--primary))] shadow-sm">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="text-sm font-semibold text-[rgb(var(--foreground))] sm:text-base">{label}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex justify-center">
+            <Button size="xl" className="min-w-64 shadow-lg shadow-[rgb(var(--primary)/0.25)]" asChild>
+              <Link href="/pricing">
+                Посмотреть тарифы
+                <ChevronRight className="h-5 w-5" />
+              </Link>
+            </Button>
           </div>
         </div>
       </div>

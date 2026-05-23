@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PRICING_PLANS, type PricingPlan } from "@/lib/plans";
 import {
-  Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CreditCard,
   Crown,
   Shield,
   Sparkles,
+  Users,
   X,
 } from "lucide-react";
 
@@ -22,27 +23,31 @@ const ACCENT_STYLES: Record<PricingPlan["accent"], {
   icon: string;
   check: string;
   button: string;
+  badge: string;
   mutedFeature: string;
 }> = {
   neutral: {
-    card: "border-[rgb(var(--border))]",
-    icon: "bg-[rgb(var(--surface-elevated))] text-[rgb(var(--foreground))]",
+    card: "border-[rgb(var(--border))] hover:border-[rgb(var(--primary)/0.3)] hover:shadow-md",
+    icon: "bg-violet-100 text-violet-600",
     check: "text-emerald-600",
     button: "border-[rgb(var(--border))] bg-white text-[rgb(var(--foreground))] hover:bg-[rgb(var(--surface-elevated))]",
+    badge: "bg-[rgb(var(--primary))] text-white",
     mutedFeature: "text-[rgb(var(--muted-foreground))]",
   },
   blue: {
-    card: "border-[#2F7FC1] shadow-xl shadow-[#2F7FC1]/10 ring-2 ring-[#2F7FC1]",
+    card: "border-[rgb(var(--primary))] shadow-xl shadow-[rgb(var(--primary)/0.12)]",
     icon: "bg-[#E8F3FF] text-[#2F7FC1]",
     check: "text-[#2F7FC1]",
     button: "bg-[#1473E6] text-white hover:bg-[#0f62c4]",
+    badge: "bg-[rgb(var(--primary))] text-white",
     mutedFeature: "text-[#2F7FC1]",
   },
   gold: {
-    card: "border-[rgb(var(--border))]",
+    card: "border-[rgb(var(--border))] hover:border-amber-300 hover:shadow-md",
     icon: "bg-amber-50 text-amber-700",
     check: "text-amber-600",
     button: "bg-[rgb(var(--foreground))] text-white hover:bg-[rgb(var(--foreground)/0.88)]",
+    badge: "bg-[rgb(var(--secondary))] text-white",
     mutedFeature: "text-amber-700",
   },
 };
@@ -54,29 +59,38 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
   return (
     <article className="relative flex h-full flex-col">
       {plan.badge && (
-        <div className="absolute -top-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[#DCEBFA] px-4 py-1 text-sm font-bold text-[#2F6EA8] shadow-sm">
+        <div className={cn("absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold shadow-sm", styles.badge)}>
           {plan.badge}
         </div>
       )}
-      <div className={cn("flex h-full flex-col rounded-2xl border bg-white p-7 shadow-sm", styles.card)}>
-        <div className={cn("mb-6 flex h-12 w-12 items-center justify-center rounded-2xl", styles.icon)}>
-          {plan.accent === "gold" ? <Crown className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
-        </div>
-
-        <div className="text-sm font-bold text-[rgb(var(--muted-foreground))]">{plan.eyebrow}</div>
-        <h2 className="mt-1 text-2xl font-bold text-[rgb(var(--foreground))]">{plan.name}</h2>
-        <div className="mt-3 flex items-end gap-1">
-          <span className="text-5xl font-black tracking-normal text-[rgb(var(--foreground))]">${plan.price}</span>
-          <span className="pb-2 text-sm text-[rgb(var(--muted-foreground))]">{plan.periodLabel}</span>
-        </div>
-        {plan.monthlyLabel && (
-          <p className="mt-3 text-sm font-bold text-emerald-700">{plan.monthlyLabel}</p>
+      <div className={cn("relative flex h-full flex-col gap-5 overflow-hidden rounded-2xl border bg-[rgb(var(--surface))] p-6 transition-all", styles.card)}>
+        {plan.accent === "blue" && (
+          <div
+            className="pointer-events-none absolute inset-0 rounded-2xl"
+            style={{ background: "linear-gradient(180deg, rgb(var(--primary)/0.05) 0%, transparent 60%)" }}
+          />
         )}
 
-        <ul className="mt-8 flex flex-1 flex-col gap-4">
+        <div className="relative">
+          <div className={cn("mb-4 flex h-12 w-12 items-center justify-center rounded-xl", styles.icon)}>
+            {plan.accent === "gold" ? <Crown className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
+          </div>
+
+          <div className="text-sm font-bold text-[rgb(var(--muted-foreground))]">{plan.eyebrow}</div>
+          <h2 className="mt-1 text-2xl font-bold text-[rgb(var(--foreground))]">{plan.name}</h2>
+          <div className="mt-4 flex items-end gap-1">
+            <span className="text-4xl font-bold tracking-normal text-[rgb(var(--foreground))]">${plan.price}</span>
+            <span className="mb-1 text-sm text-[rgb(var(--muted-foreground))]">{plan.periodLabel}</span>
+          </div>
+          {plan.monthlyLabel && (
+            <p className="mt-1 text-xs font-medium text-[rgb(var(--success))]">{plan.monthlyLabel}</p>
+          )}
+        </div>
+
+        <ul className="relative flex flex-1 flex-col gap-2.5">
           {plan.included.map((feature, index) => (
-            <li key={feature} className={cn("flex gap-3 text-base leading-6 text-[rgb(var(--foreground))]", afterDivider === index && "border-t border-[rgb(var(--border))] pt-5")}>
-              <Check className={cn("mt-1 h-4 w-4 shrink-0", styles.check)} />
+            <li key={feature} className={cn("flex gap-2 text-sm leading-6 text-[rgb(var(--foreground))]", afterDivider === index && "border-t border-[rgb(var(--border))] pt-4")}>
+              <CheckCircle2 className={cn("mt-1 h-4 w-4 shrink-0", styles.check)} />
               <span className={cn(index >= 5 || plan.accent === "gold" ? styles.mutedFeature : "")}>
                 {feature.includes("безлимит") || feature.includes("продвинутый") || feature.includes("Персональный") ? (
                   <>
@@ -93,9 +107,9 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
         </ul>
 
         {plan.excluded && plan.excluded.length > 0 && (
-          <ul className="mt-6 flex flex-col gap-3 border-t border-[rgb(var(--border))] pt-5">
+          <ul className="relative flex flex-col gap-2.5 border-t border-[rgb(var(--border))] pt-4">
             {plan.excluded.map((feature) => (
-              <li key={feature} className="flex gap-3 text-base leading-6 text-[rgb(var(--muted-foreground))]">
+              <li key={feature} className="flex gap-2 text-sm leading-6 text-[rgb(var(--muted-foreground))]">
                 <X className="mt-1 h-4 w-4 shrink-0 text-[rgb(var(--muted-foreground))]" />
                 {feature}
               </li>
@@ -103,7 +117,7 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
           </ul>
         )}
 
-        <Button asChild className={cn("mt-8 h-12 w-full rounded-xl text-base shadow-sm", styles.button)}>
+        <Button asChild className={cn("relative mt-auto h-10 w-full rounded-xl text-sm shadow-sm", styles.button)}>
           <Link href={plan.checkoutHref}>
             <CreditCard className="h-4 w-4" />
             Выбрать тариф
@@ -146,7 +160,7 @@ export default function PricingPage() {
           </p>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-3">
+        <section className="grid gap-5 md:grid-cols-3">
           {PRICING_PLANS.map((plan) => (
             <PlanCard key={plan.id} plan={plan} />
           ))}
@@ -165,6 +179,24 @@ export default function PricingPage() {
           <Button asChild variant="outline" className="rounded-xl border-emerald-200 bg-white hover:bg-emerald-50">
             <Link href="/guarantee">
               Подробнее
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </section>
+
+        <section className="grid gap-4 rounded-2xl border border-emerald-100 bg-[#F7F6EF] p-6 shadow-sm md:grid-cols-[auto_1fr_auto] md:items-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-sm shadow-emerald-500/20">
+            <Users className="h-8 w-8" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-[rgb(var(--foreground))]">Хочешь готовиться с преподавателем?</h2>
+            <p className="mt-1 text-sm leading-6 text-[rgb(var(--muted-foreground))]">
+              Групповые и индивидуальные занятия с IELTS-экспертами. Гарантия +1.5 band за 3 месяца.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="rounded-xl border-[rgb(var(--border))] bg-white hover:bg-[rgb(var(--surface-elevated))]">
+            <Link href="/live">
+              Узнать подробнее
               <ChevronRight className="h-4 w-4" />
             </Link>
           </Button>

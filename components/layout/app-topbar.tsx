@@ -42,25 +42,25 @@ export function AppTopbar({
   const initial = (name || email || "У").trim().charAt(0).toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-[rgb(var(--border))]">
+    <header className="sticky top-0 z-40 bg-[rgb(var(--surface))/0.86] supports-[backdrop-filter]:bg-white/75 backdrop-blur-xl border-b border-[rgb(var(--border))]">
       <div className="px-4 sm:px-6 h-14 flex items-center gap-3">
         {/* Mobile menu button */}
         <button
           onClick={onMenuClick}
-          className="md:hidden p-2 -ml-2 rounded-lg hover:bg-[rgb(var(--muted)/0.08)]"
+          className="md:hidden p-2 -ml-2 rounded-lg hover:bg-[rgb(var(--primary)/0.06)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))]"
           aria-label="Меню"
         >
           <Menu className="w-5 h-5 text-[rgb(var(--foreground))]" />
         </button>
 
         {/* Page title */}
-        <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[rgb(var(--muted)/0.08)]">
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[rgb(var(--surface))] border border-[rgb(var(--border))] shadow-sm">
           <span className="text-sm font-medium text-[rgb(var(--foreground))]">{title}</span>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
           <button
-            className="p-2 rounded-lg hover:bg-[rgb(var(--muted)/0.08)] relative"
+            className="p-2 rounded-lg hover:bg-[rgb(var(--primary)/0.06)] relative transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))]"
             aria-label="Уведомления"
           >
             <Bell className="w-4 h-4 text-[rgb(var(--muted-foreground))]" />
@@ -70,7 +70,7 @@ export function AppTopbar({
           <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="w-9 h-9 rounded-full bg-[rgb(var(--primary))] flex items-center justify-center text-white font-bold text-sm hover:opacity-90 transition-opacity"
+              className="w-9 h-9 rounded-full bg-[rgb(var(--primary))] flex items-center justify-center text-white font-bold text-sm hover:opacity-90 transition-all shadow-md shadow-[rgb(var(--primary)/0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2"
             >
               {initial}
             </button>
@@ -78,7 +78,7 @@ export function AppTopbar({
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-11 z-50 w-56 bg-white border border-[rgb(var(--border))] rounded-xl shadow-lg overflow-hidden">
+                <div className="absolute right-0 top-11 z-50 w-56 bg-white border border-[rgb(var(--border))] rounded-2xl shadow-xl shadow-black/10 overflow-hidden animate-slide-down">
                   <div className="px-4 py-3 border-b border-[rgb(var(--border))]">
                     <div className="font-semibold text-[rgb(var(--foreground))] text-sm truncate">{name || "Студент"}</div>
                     <div className="text-xs text-[rgb(var(--muted-foreground))] truncate">{email}</div>
@@ -86,7 +86,7 @@ export function AppTopbar({
                   <Link
                     href="/settings"
                     onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-[rgb(var(--foreground))] hover:bg-[rgb(var(--muted)/0.08)]"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-[rgb(var(--foreground))] hover:bg-[rgb(var(--primary)/0.06)] transition-colors"
                   >
                     <UserIcon className="w-4 h-4 text-[rgb(var(--muted-foreground))]" />
                     Профиль
@@ -94,7 +94,7 @@ export function AppTopbar({
                   <Link
                     href="/settings"
                     onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-[rgb(var(--foreground))] hover:bg-[rgb(var(--muted)/0.08)]"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-[rgb(var(--foreground))] hover:bg-[rgb(var(--primary)/0.06)] transition-colors"
                   >
                     <SettingsIcon className="w-4 h-4 text-[rgb(var(--muted-foreground))]" />
                     Настройки
@@ -102,7 +102,7 @@ export function AppTopbar({
                   <button
                     onClick={handleSignOut}
                     className={cn(
-                      "w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 border-t border-[rgb(var(--border))]"
+                      "w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 border-t border-[rgb(var(--border))] transition-colors"
                     )}
                   >
                     <LogOut className="w-4 h-4" />

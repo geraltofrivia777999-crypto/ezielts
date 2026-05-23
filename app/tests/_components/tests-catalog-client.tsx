@@ -81,14 +81,19 @@ const SKILLS: Array<{
   key: Skill;
   label: string;
   shortLabel: string;
+  navLabel: string;
   icon: typeof BookOpen;
   tint: string;
 }> = [
-  { key: "reading", label: "Academic Reading", shortLabel: "Чтение", icon: BookOpen, tint: "text-blue-600 bg-blue-50" },
-  { key: "listening", label: "Listening", shortLabel: "Аудир.", icon: Headphones, tint: "text-violet-600 bg-violet-50" },
-  { key: "writing", label: "Writing", shortLabel: "Письмо", icon: PenLine, tint: "text-teal-600 bg-teal-50" },
-  { key: "speaking", label: "Speaking", shortLabel: "Говор.", icon: Mic2, tint: "text-fuchsia-600 bg-fuchsia-50" },
+  { key: "reading", label: "Academic Reading", shortLabel: "Чтение", navLabel: "Reading", icon: BookOpen, tint: "text-blue-600 bg-blue-50" },
+  { key: "listening", label: "Listening", shortLabel: "Аудир.", navLabel: "Listening", icon: Headphones, tint: "text-violet-600 bg-violet-50" },
+  { key: "writing", label: "Writing", shortLabel: "Письмо", navLabel: "Writing", icon: PenLine, tint: "text-teal-600 bg-teal-50" },
+  { key: "speaking", label: "Speaking", shortLabel: "Говор.", navLabel: "Speaking", icon: Mic2, tint: "text-fuchsia-600 bg-fuchsia-50" },
 ];
+
+function isCatalogSkill(value: string | null): value is Skill {
+  return SKILLS.some((skill) => skill.key === value);
+}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -249,10 +254,12 @@ function TestCard({
 export function TestsCatalogClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialSkill = (searchParams.get("skill") as Skill | null) ?? "reading";
-  const [activeSkill, setActiveSkill] = useState<Skill>(
-    SKILLS.some((skill) => skill.key === initialSkill) ? initialSkill : "reading"
+  const initialSkillParam = searchParams.get("skill");
+  const [selectedSkill, setSelectedSkill] = useState<Skill>(
+    isCatalogSkill(initialSkillParam) ? initialSkillParam : "reading"
   );
+  const requestedSkill = searchParams.get("skill");
+  const activeSkill: Skill = isCatalogSkill(requestedSkill) ? requestedSkill : selectedSkill;
   const [officialOnly, setOfficialOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Record<Skill, CatalogItem[]>>({
@@ -421,16 +428,21 @@ export function TestsCatalogClient() {
     router.push(next.href);
   }
 
+  function selectSkill(skill: Skill) {
+    setSelectedSkill(skill);
+    router.replace(`/tests?skill=${skill}`, { scroll: false });
+  }
+
   return (
     <AppShell title="Тесты">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-[rgb(var(--foreground))]">Пробные тесты IELTS</h1>
-          <p className="text-sm text-[rgb(var(--muted-foreground))]">Выберите тип теста и начните практику</p>
-        </div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl font-bold tracking-tight text-[rgb(var(--foreground))]">Пробные тесты IELTS</h1>
+            <p className="text-sm text-[rgb(var(--muted-foreground))]">Выберите тип теста и начните практику</p>
+          </div>
 
-        <div className="border-b border-[rgb(var(--border))]">
-          <div className="flex gap-1 overflow-x-auto">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end" aria-label="Разделы IELTS">
             {SKILLS.map((skill) => {
               const Icon = skill.icon;
               const active = activeSkill === skill.key;
@@ -439,17 +451,27 @@ export function TestsCatalogClient() {
                 <button
                   key={skill.key}
                   type="button"
-                  onClick={() => setActiveSkill(skill.key)}
+                  onClick={() => selectSkill(skill.key)}
+                  aria-pressed={active}
                   className={cn(
-                    "flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors",
+                    "flex min-w-0 items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] sm:min-w-36",
                     active
-                      ? "border-[rgb(var(--primary))] text-[rgb(var(--primary))]"
-                      : "border-transparent text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]"
+                      ? "border-[rgb(var(--primary)/0.45)] bg-[rgb(var(--primary)/0.08)] text-[rgb(var(--primary))] shadow-[rgb(var(--primary)/0.12)]"
+                      : "border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--foreground))] hover:border-[rgb(var(--primary)/0.35)] hover:bg-[rgb(var(--primary)/0.04)]"
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  {skill.shortLabel}
-                  <span className="rounded-full bg-[rgb(var(--surface-elevated))] px-2 py-0.5 text-xs">{count}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl", skill.tint)}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="truncate">{skill.navLabel}</span>
+                  </span>
+                  <span className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-xs",
+                    active ? "bg-white text-[rgb(var(--primary))]" : "bg-[rgb(var(--surface-elevated))] text-[rgb(var(--muted-foreground))]"
+                  )}>
+                    {count}
+                  </span>
                 </button>
               );
             })}

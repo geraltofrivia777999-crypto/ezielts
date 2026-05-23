@@ -102,7 +102,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Главная">
-      <div className="max-w-6xl mx-auto flex flex-col gap-5">
+      <div className="max-w-6xl mx-auto flex flex-col gap-5 animate-fade-in">
 
         {/* ── Upgrade / limit banner ── */}
         {!isPro && (
@@ -181,12 +181,12 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Skills grid ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
           {skillBands.map((s) => (
             <Link
               key={s.key}
               href={s.href}
-              className="group bg-white rounded-2xl border border-[rgb(var(--border))] p-4 hover:border-[rgb(var(--primary)/0.3)] hover:shadow-md transition-all"
+              className="group bg-white rounded-2xl border border-[rgb(var(--border))] p-4 hover:border-[rgb(var(--primary)/0.3)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", s.bg)}>
@@ -213,9 +213,11 @@ export default function DashboardPage() {
         )}
 
         {/* ── AI Chatbot section ── */}
-        <div className="bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm p-6 md:p-10 flex flex-col items-center text-center">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-100 to-blue-100 flex items-center justify-center">
+        <div className="relative bg-white rounded-2xl border border-[rgb(var(--border))] shadow-sm p-6 md:p-10 flex flex-col items-center text-center overflow-hidden">
+          <div className="pointer-events-none absolute -top-20 -right-20 w-60 h-60 rounded-full bg-violet-100/40 blur-3xl" aria-hidden />
+          <div className="pointer-events-none absolute -bottom-20 -left-20 w-60 h-60 rounded-full bg-blue-100/40 blur-3xl" aria-hidden />
+          <div className="relative flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-100 to-blue-100 flex items-center justify-center animate-float">
               <Sparkles className="w-6 h-6 text-[rgb(var(--primary))]" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[rgb(var(--foreground))]">
