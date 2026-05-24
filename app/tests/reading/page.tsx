@@ -362,7 +362,7 @@ function QuestionSupportPanel({
       )}
 
       {aiState.open && (
-        <div className="w-full min-w-72 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3 text-left shadow-sm">
+        <div className="w-full rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3 text-left shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-[rgb(var(--foreground))]">
             <MessageCircle className="h-3.5 w-3.5 text-blue-600" />
             <span className="font-semibold">Разбор вопроса {number}</span>

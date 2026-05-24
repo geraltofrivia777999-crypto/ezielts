@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/dashboard";
+  const next = url.searchParams.get("next") ?? "/signup?premium=1";
 
   // Resolve the public origin (Render/Vercel/proxies set x-forwarded-*).
   // Falls back to NEXT_PUBLIC_APP_URL, then to the raw request origin.

@@ -6,7 +6,7 @@ import { AppTopbar } from "./app-topbar";
 
 function AppSidebarFallback() {
   return (
-    <aside className="w-60 bg-[rgb(var(--surface))/0.94] border-r border-[rgb(var(--border))] h-screen sticky top-0" />
+    <aside className="h-full min-h-0 w-60 border-r border-[rgb(var(--border))] bg-[rgb(var(--surface))/0.94]" />
   );
 }
 
@@ -21,9 +21,9 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,rgb(var(--background))_0%,rgb(var(--surface-elevated)/0.48)_100%)] flex">
+    <div className="flex h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,rgb(var(--background))_0%,rgb(var(--surface-elevated)/0.48)_100%)]">
       {/* Desktop sidebar */}
-      <div className="hidden md:block shrink-0">
+      <div className="hidden h-full min-h-0 shrink-0 md:block">
         <Suspense fallback={<AppSidebarFallback />}>
           <AppSidebar />
         </Suspense>
@@ -45,9 +45,9 @@ export function AppShell({
       )}
 
       {/* Main column */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <AppTopbar title={title} onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-7">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-7">
           {children}
         </main>
       </div>

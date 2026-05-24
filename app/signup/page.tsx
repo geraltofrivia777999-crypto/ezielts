@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +18,15 @@ import {
   MailCheck,
   MessageCircle,
   Crown,
-  ClipboardCheck,
   CalendarDays,
   Bot,
   BarChart3,
   FileCheck2,
   Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  Shield,
+  Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -38,16 +41,31 @@ const GOALS = [
 
 type Step = "account" | "onboarding" | "verify" | "premium";
 
-const PREMIUM_BENEFITS = [
-  { icon: Crown, label: "Безлимитный доступ ко всем IELTS тестам" },
-  { icon: ClipboardCheck, label: "Диагностические тесты и точный стартовый уровень" },
-  { icon: CalendarDays, label: "Персональный AI-план подготовки под цель и дату экзамена" },
-  { icon: FileCheck2, label: "Writing и Speaking feedback с подробным разбором ошибок" },
-  { icon: Bot, label: "Персональный AI Tutor для вопросов и объяснений" },
-  { icon: BarChart3, label: "Отслеживание прогресса и слабых мест" },
+const PREMIUM_FEATURES = [
+  "Все тесты без лимита",
+  "Writing — безлимит проверок",
+  "Speaking — безлимит сессий",
+  "Персональный AI-план",
+  "AI Tutor — продвинутый",
+  "Детальный анализ ошибок",
+  "Прогресс-трекер",
+  "Гарантия +1 band",
 ];
 
-export default function SignupPage() {
+function SignupFallback() {
+  return (
+    <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center p-4">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
+          <span className="text-white font-bold text-sm">EZ</span>
+        </div>
+        <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ielts</span>
+      </div>
+    </div>
+  );
+}
+
+function SignupContent() {
   const [step, setStep] = useState<Step>("account");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -69,6 +87,8 @@ export default function SignupPage() {
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("from") === "diagnostic"
   );
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const visibleStep: Step = searchParams.get("premium") === "1" ? "premium" : step;
 
   async function handleAccountSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,6 +106,8 @@ export default function SignupPage() {
     setError(null);
 
     const sb = createClient();
+    const emailRedirectUrl = new URL("/api/auth/callback", window.location.origin);
+    emailRedirectUrl.searchParams.set("next", "/signup?premium=1");
 
     // Sign up
     const { data, error: signUpError } = await sb.auth.signUp({
@@ -93,7 +115,7 @@ export default function SignupPage() {
       password,
       options: {
         data: { name },
-        emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+        emailRedirectTo: emailRedirectUrl.toString(),
       },
     });
 
@@ -138,7 +160,7 @@ export default function SignupPage() {
   }
 
   // ─── Step 1: Account ───────────────────────────────────────────────────────
-  if (step === "account") {
+  if (visibleStep === "account") {
     return (
       <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center p-4 relative overflow-hidden">
         <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-violet-100/50 blur-3xl -translate-y-1/2" aria-hidden />
@@ -266,7 +288,7 @@ export default function SignupPage() {
   }
 
   // ─── Step 3: Email verification ───────────────────────────────────────────
-  if (step === "verify") {
+  if (visibleStep === "verify") {
     return (
       <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center p-4">
         <Link href="/" className="flex items-center gap-2 mb-8">
@@ -310,43 +332,101 @@ export default function SignupPage() {
   }
 
   // ─── Step 4: Premium prompt ───────────────────────────────────────────────
-  if (step === "premium") {
+  if (visibleStep === "premium") {
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center p-4">
-        <div className="w-full max-w-3xl rounded-3xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-6 shadow-2xl shadow-black/10 sm:p-10">
-          <div className="text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgb(var(--primary)/0.1)]">
-              <Sparkles className="h-8 w-8 text-[rgb(var(--primary))]" />
+      <div className="min-h-screen bg-[rgb(var(--background))] relative overflow-hidden">
+        {/* Decorative background */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full bg-[rgb(var(--primary)/0.06)] blur-[100px]" />
+        </div>
+
+        <div className="relative flex flex-col items-center min-h-screen px-4 pt-10 pb-12 sm:pt-16 sm:justify-center">
+          <div className="w-full max-w-md text-center">
+            {/* Success badge */}
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-[rgb(var(--success)/0.08)] border border-[rgb(var(--success)/0.2)] px-4 py-2 text-sm font-medium text-[rgb(var(--success))]">
+              <CheckCircle2 className="h-4 w-4" />
+              Аккаунт создан
             </div>
-            <h1 className="text-2xl font-bold text-[rgb(var(--foreground))] sm:text-3xl">
-              Достигай нужного IELTS band быстрее с Pro
+
+            {/* Heading */}
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[rgb(var(--foreground))] leading-tight mb-2">
+              Открой полный доступ к IELTS подготовке
             </h1>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[rgb(var(--muted-foreground))]">
-              Аккаунт создан. Открой полный доступ к тестам, AI feedback, персональному плану и прогресс-трекеру.
+            <p className="text-sm text-[rgb(var(--muted-foreground))] mb-8">
+              Всё что нужно для целевого балла — в одной подписке
             </p>
-          </div>
 
-          <div className="mt-8 grid gap-3">
-            {PREMIUM_BENEFITS.map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                className="flex items-center gap-4 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface-elevated))] px-4 py-4"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[rgb(var(--primary))] shadow-sm">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="text-sm font-semibold text-[rgb(var(--foreground))] sm:text-base">{label}</span>
+            {/* Pricing card */}
+            <div className="rounded-2xl border-2 border-[rgb(var(--primary)/0.3)] bg-[rgb(var(--surface))] shadow-xl shadow-[rgb(var(--primary)/0.06)] overflow-hidden">
+              {/* Card header */}
+              <div className="bg-[rgb(var(--primary))] px-6 py-4">
+                <div className="flex items-center justify-center gap-2 text-white/80 text-xs font-semibold uppercase tracking-widest mb-1">
+                  <Crown className="h-3.5 w-3.5" />
+                  Лучший выбор
+                </div>
+                <div className="flex items-baseline justify-center gap-1 text-white">
+                  <span className="text-4xl font-bold">$12</span>
+                  <span className="text-white/70 text-sm">/мес</span>
+                </div>
+                <div className="text-white/60 text-xs mt-1">$36 за 3 месяца</div>
               </div>
-            ))}
-          </div>
 
-          <div className="mt-8 flex justify-center">
-            <Button size="xl" className="min-w-64 shadow-lg shadow-[rgb(var(--primary)/0.25)]" asChild>
-              <Link href="/pricing">
-                Посмотреть тарифы
-                <ChevronRight className="h-5 w-5" />
+              {/* Features list */}
+              <div className="p-5 sm:p-6">
+                <div className="grid gap-2.5">
+                  {PREMIUM_FEATURES.map((feature) => (
+                    <div key={feature} className="flex items-center gap-3 text-left">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-[rgb(var(--success))]" />
+                      <span className="text-sm text-[rgb(var(--foreground))]">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-[rgb(var(--border))]" />
+
+              {/* CTA inside card */}
+              <div className="p-5 sm:p-6">
+                <Button size="lg" className="w-full shadow-lg shadow-[rgb(var(--primary)/0.25)]" asChild>
+                  <Link href="/checkout?plan=pro_quarterly">
+                    Начать подготовку с Pro
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <div className="mt-3 flex items-center justify-center gap-4 text-[11px] text-[rgb(var(--muted-foreground))]">
+                  <span className="flex items-center gap-1">
+                    <Shield className="h-3 w-3" />
+                    Гарантия +1 band
+                  </span>
+                  <span className="h-3 w-px bg-[rgb(var(--border))]" />
+                  <span className="flex items-center gap-1">
+                    <Zap className="h-3 w-3" />
+                    Отмена в любой момент
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Other plans link */}
+            <div className="mt-4">
+              <Link
+                href="/pricing"
+                className="text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-colors underline underline-offset-4 decoration-[rgb(var(--border))]"
+              >
+                Все тарифы
               </Link>
-            </Button>
+            </div>
+
+            {/* Skip link */}
+            <div className="mt-6">
+              <Link
+                href="/dashboard"
+                className="text-xs text-[rgb(var(--muted))] hover:text-[rgb(var(--muted-foreground))] transition-colors"
+              >
+                Продолжить с бесплатным планом
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -496,5 +576,13 @@ export default function SignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupFallback />}>
+      <SignupContent />
+    </Suspense>
   );
 }

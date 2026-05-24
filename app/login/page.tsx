@@ -48,11 +48,13 @@ export default function LoginPage() {
     }
     setError(null);
     const sb = createClient();
+    const emailRedirectUrl = new URL("/api/auth/callback", window.location.origin);
+    emailRedirectUrl.searchParams.set("next", "/signup?premium=1");
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const { error: resendErr } = await (sb as any).auth.resend({
       type: "signup",
       email,
-      options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
+      options: { emailRedirectTo: emailRedirectUrl.toString() },
     });
     if (resendErr) {
       setError(resendErr.message);

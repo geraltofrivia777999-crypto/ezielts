@@ -328,13 +328,13 @@ export default function ProgressPage() {
             <p className="text-sm text-[rgb(var(--muted-foreground))]">Отслеживайте свой прогресс по навыкам</p>
           </div>
           {/* Period selector */}
-          <div className="flex items-center bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-lg p-0.5">
+          <div className="flex items-center bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-lg p-0.5 overflow-x-auto">
             {PERIODS.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap",
                   period === p.id
                     ? "bg-[rgb(var(--background))] text-[rgb(var(--foreground))] shadow-sm"
                     : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]"

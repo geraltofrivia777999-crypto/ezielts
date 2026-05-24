@@ -50,7 +50,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const activeTestSection = hasCatalogSection ? rawTestSection : null;
 
   return (
-    <aside className="w-60 bg-[rgb(var(--surface))/0.96] supports-[backdrop-filter]:bg-white/88 backdrop-blur-md border-r border-[rgb(var(--border))] flex flex-col h-screen sticky top-0">
+    <aside className="flex h-full min-h-0 w-60 flex-col border-r border-[rgb(var(--border))] bg-[rgb(var(--surface))/0.96] backdrop-blur-md supports-[backdrop-filter]:bg-white/88">
       {/* Logo */}
       <div className="px-5 pt-5 pb-4 border-b border-[rgb(var(--border))]">
         <Link href="/" className="flex items-center gap-2 group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2">

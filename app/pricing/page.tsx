@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AppShell } from "@/components/layout/app-shell";
 import { ProofSections } from "@/components/marketing/proof-sections";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,15 +9,17 @@ import { cn } from "@/lib/utils";
 import { PRICING_PLANS, type PricingPlan } from "@/lib/plans";
 import {
   CheckCircle2,
-  ChevronLeft,
   ChevronRight,
   CreditCard,
   Crown,
+  MessageCircle,
   Shield,
   Sparkles,
   Users,
   X,
 } from "lucide-react";
+
+const WHATSAPP_URL = "https://wa.me/77001234567?text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5!%20%D0%A5%D0%BE%D1%87%D1%83%20%D1%83%D0%B7%D0%BD%D0%B0%D1%82%D1%8C%20%D0%BF%D1%80%D0%BE%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5";
 
 const ACCENT_STYLES: Record<PricingPlan["accent"], {
   card: string;
@@ -130,23 +133,8 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-[rgb(var(--background))]">
-      <header className="sticky top-0 z-40 border-b border-[rgb(var(--border))] bg-[rgb(var(--surface))]">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]">
-            <ChevronLeft className="h-4 w-4" />
-            Dashboard
-          </Link>
-          <div className="ml-2 flex items-center gap-1.5">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-[rgb(var(--primary))]">
-              <span className="text-xs font-bold text-white">EZ</span>
-            </div>
-            <span className="font-semibold text-[rgb(var(--foreground))]">ielts</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto flex max-w-6xl flex-col gap-12 px-4 py-12">
+    <AppShell title="Тарифы">
+      <main className="mx-auto flex max-w-6xl flex-col gap-12 py-6">
         <section className="text-center">
           <Badge variant="default" className="mb-4 gap-1.5 px-3 py-1">
             <Sparkles className="h-3 w-3" />
@@ -203,7 +191,23 @@ export default function PricingPage() {
         </section>
 
         <ProofSections />
+
+        <section className="rounded-2xl bg-gradient-to-r from-[rgb(var(--primary))] to-violet-500 p-8 text-center text-white">
+          <h2 className="mb-2 text-xl font-bold">Готовы начать подготовку?</h2>
+          <p className="mx-auto mb-5 max-w-md text-sm text-white/80">
+            Напишите нам в WhatsApp — подберём подходящий формат и расскажем подробнее
+          </p>
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-[rgb(var(--primary))] transition-colors hover:bg-white/90"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Написать в WhatsApp
+          </a>
+        </section>
       </main>
-    </div>
+    </AppShell>
   );
 }

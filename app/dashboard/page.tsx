@@ -160,7 +160,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-[rgb(var(--muted)/0.05)] rounded-xl px-4 py-2.5 flex flex-col gap-1 min-w-[180px]">
+          <div className="bg-[rgb(var(--muted)/0.05)] rounded-xl px-4 py-2.5 flex flex-col gap-1 sm:min-w-[180px]">
             <div className="flex items-center gap-2">
               <Target className="w-3.5 h-3.5 text-[rgb(var(--muted-foreground))]" />
               <span className="text-[10px] uppercase tracking-wider text-[rgb(var(--muted-foreground))] font-semibold">Целевой балл</span>

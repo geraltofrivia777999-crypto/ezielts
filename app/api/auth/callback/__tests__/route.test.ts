@@ -21,12 +21,12 @@ describe("GET /api/auth/callback", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
   });
 
-  it("redirects to /dashboard after successful code exchange", async () => {
+  it("redirects to premium prompt after successful code exchange without custom next", async () => {
     const sb = createMockSupabaseClient();
     (createClient as Mock).mockResolvedValue(sb);
     await GET(getRequest("https://app.test/api/auth/callback?code=abc"));
     expect(sb.auth.exchangeCodeForSession).toHaveBeenCalledWith("abc");
-    expect(lastRedirectUrl()).toBe("https://app.test/dashboard");
+    expect(lastRedirectUrl()).toBe("https://app.test/signup?premium=1");
   });
 
   it("honours a custom ?next= destination", async () => {
@@ -55,7 +55,7 @@ describe("GET /api/auth/callback", () => {
         "x-forwarded-host": "public.example.com",
         "x-forwarded-proto": "https",
       }));
-      expect(lastRedirectUrl()).toBe("https://public.example.com/dashboard");
+      expect(lastRedirectUrl()).toBe("https://public.example.com/signup?premium=1");
     });
 
     it("defaults x-forwarded-proto to https when only host is present", async () => {
@@ -63,20 +63,20 @@ describe("GET /api/auth/callback", () => {
       await GET(getRequest("http://internal.local/api/auth/callback?code=abc", {
         "x-forwarded-host": "public.example.com",
       }));
-      expect(lastRedirectUrl()).toBe("https://public.example.com/dashboard");
+      expect(lastRedirectUrl()).toBe("https://public.example.com/signup?premium=1");
     });
 
     it("falls back to NEXT_PUBLIC_APP_URL when no forwarded headers", async () => {
       process.env.NEXT_PUBLIC_APP_URL = "https://configured.example.com";
       (createClient as Mock).mockResolvedValue(createMockSupabaseClient());
       await GET(getRequest("https://other.local/api/auth/callback?code=abc"));
-      expect(lastRedirectUrl()).toBe("https://configured.example.com/dashboard");
+      expect(lastRedirectUrl()).toBe("https://configured.example.com/signup?premium=1");
     });
 
     it("falls back to request origin when no header and no env", async () => {
       (createClient as Mock).mockResolvedValue(createMockSupabaseClient());
       await GET(getRequest("https://raw.example.com/api/auth/callback?code=abc"));
-      expect(lastRedirectUrl()).toBe("https://raw.example.com/dashboard");
+      expect(lastRedirectUrl()).toBe("https://raw.example.com/signup?premium=1");
     });
   });
 });

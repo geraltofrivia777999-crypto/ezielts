@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   ArrowRight,
+  Sparkles,
+  Target,
 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -265,63 +267,101 @@ export default function DiagnosticPage() {
   // ─── INTRO ───────────────────────────────────────────────────────────────
   if (phase === "intro") {
     return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center px-4 py-10">
-        <div className="w-full max-w-3xl text-center">
-          <Link href="/" className="mb-10 inline-flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-[rgb(var(--primary))] flex items-center justify-center shadow-lg shadow-[rgb(var(--primary)/0.25)]">
+      <div className="min-h-screen bg-[rgb(var(--background))] relative overflow-hidden">
+        {/* Decorative background */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-[rgb(var(--primary)/0.05)] blur-[100px]" />
+          <div className="absolute bottom-0 right-0 w-[300px] h-[300px] rounded-full bg-[rgb(var(--secondary)/0.04)] blur-[80px]" />
+        </div>
+
+        <div className="relative flex flex-col items-center min-h-screen px-4 pt-8 pb-12 sm:pt-12 sm:justify-center">
+          {/* Logo */}
+          <Link href="/" className="mb-10 sm:mb-14 inline-flex items-center gap-2.5 group">
+            <div className="w-9 h-9 rounded-xl bg-[rgb(var(--primary))] flex items-center justify-center shadow-lg shadow-[rgb(var(--primary)/0.25)] transition-transform group-hover:scale-105">
               <span className="text-white font-bold text-sm">EZ</span>
             </div>
             <span className="font-semibold text-[rgb(var(--foreground))] text-lg">EZielts</span>
           </Link>
 
-          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[rgb(var(--primary)/0.08)]">
-            <Brain className="h-11 w-11 text-[rgb(var(--primary))]" />
-          </div>
+          <div className="w-full max-w-md text-center">
+            {/* Badge */}
+            <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--primary)/0.15)] bg-[rgb(var(--primary)/0.06)] px-3.5 py-1.5 text-xs font-medium text-[rgb(var(--primary))]">
+              <Sparkles className="h-3.5 w-3.5" />
+              Бесплатная диагностика
+            </div>
 
-          <h1 className="mb-5 text-3xl font-bold tracking-tight text-[rgb(var(--foreground))] sm:text-4xl">
-            Добро пожаловать в EZielts
-          </h1>
-
-          <div className="mb-8 rounded-3xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-6 py-8 shadow-sm sm:px-10">
-            <p className="mx-auto max-w-2xl text-2xl font-semibold leading-snug text-[rgb(var(--foreground))] sm:text-3xl">
-              Ответь на несколько быстрых вопросов, чтобы узнать примерный IELTS band и получить персональные рекомендации бесплатно.
+            {/* Heading */}
+            <h1 className="mb-3 text-3xl font-bold tracking-tight text-[rgb(var(--foreground))] sm:text-4xl leading-tight">
+              Узнай свой IELTS Band
+            </h1>
+            <p className="mx-auto mb-10 max-w-sm text-base leading-relaxed text-[rgb(var(--muted-foreground))]">
+              11 вопросов за 10 минут — оценка уровня и персональные рекомендации
             </p>
-            <div className="mt-5 flex items-center justify-center gap-2 text-sm font-medium text-[rgb(var(--muted-foreground))]">
-              <Clock className="h-4 w-4" />
-              Меньше 10 минут
+
+            {/* Card */}
+            <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-sm overflow-hidden mb-8">
+              {/* Skills */}
+              <div className="p-5 sm:p-6">
+                <div className="mb-4 text-[11px] uppercase tracking-widest font-semibold text-[rgb(var(--muted-foreground))]">
+                  Что проверяем
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {DIAGNOSTIC_SKILLS.map((skill) => {
+                    const { icon: Icon, label, color } = SKILL_META[skill];
+                    const count = DIAGNOSTIC_QUESTIONS.filter((item) => item.skill === skill).length;
+                    return (
+                      <div
+                        key={skill}
+                        className="flex items-center gap-3 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--background))] px-4 py-3.5 text-left"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[rgb(var(--primary)/0.08)]">
+                          <Icon className={cn("h-4 w-4", color)} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-[rgb(var(--foreground))]">{label}</div>
+                          <div className="text-xs text-[rgb(var(--muted-foreground))]">{count} вопросов</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-[rgb(var(--border))]" />
+
+              {/* Meta footer */}
+              <div className="flex items-center justify-between px-5 py-3.5 sm:px-6 text-[13px] text-[rgb(var(--muted-foreground))]">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-[rgb(var(--muted))]" />
+                  <span>~10 минут</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-[rgb(var(--muted))]" />
+                  <span>Band 4.0 — 8.0</span>
+                </div>
+              </div>
+            </div>
+
+            {/* CTA */}
+            <Button size="xl" className="w-full sm:w-auto sm:min-w-72 shadow-lg shadow-[rgb(var(--primary)/0.2)]" onClick={() => setPhase("test")}>
+              Начать диагностику
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+
+            {/* Trust signals */}
+            <div className="mt-5 flex items-center justify-center gap-4 text-xs text-[rgb(var(--muted-foreground))]">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-[rgb(var(--success))]" />
+                Без регистрации
+              </span>
+              <span className="h-3 w-px bg-[rgb(var(--border))]" />
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-[rgb(var(--success))]" />
+                Результат сразу
+              </span>
             </div>
           </div>
-
-          <div className="mb-8 flex items-center justify-center gap-2 text-base font-medium text-[rgb(var(--foreground))]">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-            </span>
-            Диагностика считает уровень по Reading и Grammar
-          </div>
-
-          <div className="mx-auto mb-8 grid max-w-xl gap-3 sm:grid-cols-2">
-            {DIAGNOSTIC_SKILLS.map((skill) => {
-              const { icon: Icon, label, color, bg } = SKILL_META[skill];
-              const count = DIAGNOSTIC_QUESTIONS.filter((item) => item.skill === skill).length;
-              return (
-                <div key={skill} className={cn("flex items-center gap-3 rounded-2xl px-4 py-3 text-left", bg)}>
-                  <Icon className={cn("h-5 w-5", color)} />
-                  <div>
-                    <div className="text-sm font-semibold text-[rgb(var(--foreground))]">{label}</div>
-                    <div className="text-xs text-[rgb(var(--muted-foreground))]">{count} вопросов</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <Button size="xl" className="min-w-64" onClick={() => setPhase("test")}>
-            Продолжить
-            <ChevronRight className="w-5 h-5" />
-          </Button>
-          <p className="mt-4 text-xs text-[rgb(var(--muted-foreground))]">
-            Результат покажем сразу, карту вводить не нужно
-          </p>
         </div>
       </div>
     );
@@ -425,7 +465,7 @@ export default function DiagnosticPage() {
             <div className="flex flex-col gap-3">
               <Button size="lg" className="w-full" asChild>
                 <Link href="/signup?from=diagnostic">
-                  Создать аккаунт и сохранить результаты
+                    Начать готовиться
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>

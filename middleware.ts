@@ -51,8 +51,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages
+  // Exception: /signup?premium=1 is the post-signup upsell screen — allow it even if logged in
   const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p));
-  if (isAuthRoute && user) {
+  const isPostSignupPremium = pathname.startsWith("/signup") && request.nextUrl.searchParams.get("premium") === "1";
+  if (isAuthRoute && user && !isPostSignupPremium) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
