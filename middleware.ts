@@ -60,6 +60,35 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // ── Guarantee premium popup for new signups ──
+  // If user is authenticated and heading to a protected route but hasn't seen
+  // the premium popup yet, redirect them there first. This catches ALL entry
+  // paths: direct login, email callback, OAuth, different browser, etc.
+  if (user && isProtected) {
+    const seenPremium = request.cookies.get("ez_seen_premium")?.value;
+    const showPremium = request.cookies.get("ez_show_premium")?.value;
+
+    if (!seenPremium) {
+      // Cookie-based: signup happened in this browser
+      if (showPremium === "1") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/signup";
+        url.searchParams.set("premium", "1");
+        return NextResponse.redirect(url);
+      }
+
+      // Time-based fallback: account created < 1 hour ago (covers different browser)
+      const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+      const oneHourAgo = Date.now() - 60 * 60 * 1000;
+      if (createdAt > oneHourAgo) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/signup";
+        url.searchParams.set("premium", "1");
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   return supabaseResponse;
 }
 

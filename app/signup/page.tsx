@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -103,6 +103,10 @@ function SignupContent() {
       setLoading(false);
       return;
     }
+
+    // Mark this browser so middleware can redirect to premium popup
+    // even if the email callback redirect fails (e.g. different browser, expired code)
+    document.cookie = "ez_show_premium=1; path=/; max-age=86400; SameSite=Lax";
 
     // Update profile with basic data
     if (data.user) {
@@ -282,6 +286,15 @@ function SignupContent() {
   }
 
   // ─── Step 4: Premium prompt ───────────────────────────────────────────────
+  // Mark premium popup as seen — prevents middleware from redirecting here again
+  useEffect(() => {
+    if (visibleStep === "premium") {
+      document.cookie = "ez_seen_premium=1; path=/; max-age=31536000; SameSite=Lax";
+      // Clear the show_premium cookie since user is now seeing the popup
+      document.cookie = "ez_show_premium=; path=/; max-age=0";
+    }
+  }, [visibleStep]);
+
   if (visibleStep === "premium") {
     return (
       <div className="min-h-screen bg-[rgb(var(--background))] relative overflow-hidden">

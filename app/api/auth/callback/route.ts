@@ -18,9 +18,20 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${publicOrigin}${next}`);
+      // Successful exchange — redirect to premium popup (or wherever `next` says)
+      const response = NextResponse.redirect(`${publicOrigin}${next}`);
+      // Set cookie so middleware guarantees the popup even if this redirect is lost
+      response.cookies.set("ez_show_premium", "1", {
+        path: "/",
+        maxAge: 86400,
+        sameSite: "lax",
+      });
+      return response;
     }
   }
 
+  // Code exchange failed — send to login. The ez_show_premium cookie
+  // (set during signup) will ensure middleware redirects to premium popup
+  // once the user logs in successfully.
   return NextResponse.redirect(`${publicOrigin}/login?error=oauth`);
 }
