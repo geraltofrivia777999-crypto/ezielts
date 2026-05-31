@@ -166,7 +166,7 @@ const SKILL_META: Record<Skill, { icon: typeof BookOpen; label: string; color: s
 
 const DIAGNOSTIC_SKILLS: Skill[] = ["reading", "grammar"];
 
-type Phase = "intro" | "test" | "results";
+type Phase = "intro" | "test" | "analyzing" | "results";
 
 // ─── Score → Band estimation ─────────────────────────────────────────────────
 
@@ -216,7 +216,7 @@ export default function DiagnosticPage() {
     setSelected(null);
     setConfirmed(false);
     if (currentIdx + 1 >= total) {
-      setPhase("results");
+      setPhase("analyzing");
     } else {
       setCurrentIdx((i) => i + 1);
     }
@@ -238,13 +238,15 @@ export default function DiagnosticPage() {
   };
   const overallBand = Math.round(((bands.reading + bands.grammar) / 2) * 2) / 2;
 
-  // ── Save results to Supabase when results phase is reached ──
-  useEffect(() => {
-    if (phase !== "results") return;
-    const weakSkills = DIAGNOSTIC_SKILLS
-      .filter((s) => bands[s] < 6.0);
+  // ── Analyzing phase: save results + animate → show results ──
+  const [analyzingStep, setAnalyzingStep] = useState(0);
 
-    async function persist() {
+  useEffect(() => {
+    if (phase !== "analyzing") return;
+
+    // Save results to Supabase
+    const weakSkills = DIAGNOSTIC_SKILLS.filter((s) => bands[s] < 6.0);
+    (async () => {
       try {
         const sb = createClient();
         const { data: { user } } = await sb.auth.getUser();
@@ -259,10 +261,115 @@ export default function DiagnosticPage() {
           answers,
         });
       } catch { /* non-fatal */ }
-    }
-    persist();
+    })();
+
+    // Step through the analyzing animation
+    const steps = [800, 1400, 2000, 2800];
+    const timers = steps.map((delay, i) =>
+      setTimeout(() => setAnalyzingStep(i + 1), delay)
+    );
+    // Transition to results after all steps
+    const finalTimer = setTimeout(() => setPhase("results"), 3400);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(finalTimer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
+
+  // ─── ANALYZING ─────────────────────────────────────────────────────────
+  const ANALYZING_STEPS = [
+    { label: "Проверяем ответы", icon: CheckCircle2 },
+    { label: "Анализируем Reading", icon: BookOpen },
+    { label: "Анализируем Grammar", icon: Brain },
+    { label: "Рассчитываем Band Score", icon: Target },
+  ];
+
+  if (phase === "analyzing") {
+    return (
+      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center px-4 relative overflow-hidden">
+        {/* Decorative bg */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-[rgb(var(--primary)/0.06)] blur-[100px]" />
+        </div>
+
+        <div className="relative w-full max-w-sm text-center">
+          {/* Spinner */}
+          <div className="mx-auto mb-8 relative w-20 h-20">
+            <div
+              className="absolute inset-0 rounded-full border-[3px] border-[rgb(var(--border))]"
+            />
+            <div
+              className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-[rgb(var(--primary))]"
+              style={{ animation: "spin 1s linear infinite" }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Sparkles className="h-7 w-7 text-[rgb(var(--primary))]" style={{ animation: "pulse-soft 1.5s ease-in-out infinite" }} />
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold text-[rgb(var(--foreground))] mb-2">
+            Анализируем результаты
+          </h2>
+          <p className="text-sm text-[rgb(var(--muted-foreground))] mb-10">
+            Подождите, это займёт несколько секунд
+          </p>
+
+          {/* Steps */}
+          <div className="flex flex-col gap-3 text-left">
+            {ANALYZING_STEPS.map((s, i) => {
+              const Icon = s.icon;
+              const done = analyzingStep > i;
+              const active = analyzingStep === i;
+              return (
+                <div
+                  key={s.label}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-500",
+                    done && "bg-[rgb(var(--success)/0.06)]",
+                    active && "bg-[rgb(var(--primary)/0.06)]",
+                    !done && !active && "opacity-40",
+                  )}
+                >
+                  <div className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-500",
+                    done && "bg-[rgb(var(--success)/0.12)]",
+                    active && "bg-[rgb(var(--primary)/0.12)]",
+                    !done && !active && "bg-[rgb(var(--surface-elevated))]",
+                  )}>
+                    {done ? (
+                      <CheckCircle2 className="h-4 w-4 text-[rgb(var(--success))]" />
+                    ) : (
+                      <Icon className={cn(
+                        "h-4 w-4 transition-colors duration-500",
+                        active ? "text-[rgb(var(--primary))]" : "text-[rgb(var(--muted))]"
+                      )} />
+                    )}
+                  </div>
+                  <span className={cn(
+                    "text-sm font-medium transition-colors duration-500",
+                    done && "text-[rgb(var(--success))]",
+                    active && "text-[rgb(var(--foreground))]",
+                    !done && !active && "text-[rgb(var(--muted))]",
+                  )}>
+                    {s.label}
+                  </span>
+                  {active && (
+                    <div className="ml-auto flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--primary))]" style={{ animation: "pulse-soft 1s ease-in-out infinite" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--primary))]" style={{ animation: "pulse-soft 1s ease-in-out 0.2s infinite" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--primary))]" style={{ animation: "pulse-soft 1s ease-in-out 0.4s infinite" }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─── INTRO ───────────────────────────────────────────────────────────────
   if (phase === "intro") {
