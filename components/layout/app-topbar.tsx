@@ -42,7 +42,7 @@ export function AppTopbar({
   const initial = (name || email || "У").trim().charAt(0).toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 bg-[rgb(var(--surface))/0.9] supports-[backdrop-filter]:bg-white/82 backdrop-blur-md border-b border-[rgb(var(--border))]">
+    <header className="sticky top-0 z-40 shrink-0 bg-[rgb(var(--surface))/0.9] supports-[backdrop-filter]:bg-white/82 backdrop-blur-md border-b border-[rgb(var(--border))]">
       <div className="px-4 sm:px-6 h-14 flex items-center gap-3">
         {/* Mobile menu button */}
         <button
