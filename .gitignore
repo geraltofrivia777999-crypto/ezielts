@@ -50,3 +50,11 @@ __pycache__/
 # Scraper cache + data
 .cache/
 data/
+
+# Generated listening demos/audio
+.generated/
+public/generated-listening/
+scripts/fix_ai_listening_answer_leaks.py
+scripts/generate_ai_listening_demo.py
+scripts/generate_import_ai_listening_batch.py
+scripts/replace_ai_listening_audio_openai.py

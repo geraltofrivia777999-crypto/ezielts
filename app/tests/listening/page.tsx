@@ -2238,57 +2238,117 @@ function ListeningTestPageContent() {
             </div>
           )}
 
-          <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-semibold text-[rgb(var(--foreground))]">Questions 1–{totalQ}</h2>
-              <span className="text-xs text-[rgb(var(--muted-foreground))]">{answeredCount} из {totalQ}</span>
-            </div>
-            <div className="flex flex-col gap-8">
-              {activeSections.map((section) => {
-                const firstIndex = fullTestQuestions.findIndex((q) => q.id === section.questions[0]?.id);
-                const safeFirstIndex = Math.max(firstIndex, 0);
-                const instruction = section.questions[0]?.instruction;
-                const questionsByNumber = questionMapForSection(section.questions, safeFirstIndex);
-                const inlineIds = instruction
-                  ? inlineQuestionIds(instruction, questionsByNumber)
-                  : new Set<string>();
-                const rangeFallbackIds = instruction
-                  ? rangeFallbackQuestionIds(instruction, questionsByNumber)
-                  : new Set<string>();
-                const handledIds = new Set([...inlineIds, ...rangeFallbackIds]);
-                const remainingQuestions = section.questions
-                  .map((q, offset) => ({ q, index: safeFirstIndex + offset }))
-                  .filter(({ q }) => !handledIds.has(q.id));
-                const remainingArePlaceholders = remainingQuestions.every(
-                  ({ q }) => q.kind === "text" && /^Question\s+\d+$/i.test(q.text)
-                );
-                return (
-                  <section key={section.sectionNumber} className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="font-semibold text-sm text-[rgb(var(--foreground))]">
-                          Section {section.sectionNumber}
-                        </h3>
-                        <span className="text-xs text-[rgb(var(--muted-foreground))]">
-                          Questions {safeFirstIndex + 1}–{safeFirstIndex + section.questions.length}
-                        </span>
+          {activeSections.length > 1 && (
+            <nav className="sticky top-[86px] z-30 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface)/0.96)] p-2 shadow-sm backdrop-blur">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {activeSections.map((section) => {
+                  const firstIndex = fullTestQuestions.findIndex((q) => q.id === section.questions[0]?.id);
+                  const safeFirstIndex = Math.max(firstIndex, 0);
+                  const sectionAnswered = section.questions.filter((q) => {
+                    const v = answers[q.id];
+                    if (q.kind === "mcq") return typeof v === "number";
+                    return typeof v === "string" && v.trim().length > 0;
+                  }).length;
+
+                  return (
+                    <a
+                      key={section.sectionNumber}
+                      href={`#listening-section-${section.sectionNumber}`}
+                      className="rounded-xl px-3 py-2 text-left transition-colors hover:bg-[rgb(var(--primary)/0.06)]"
+                    >
+                      <span className="block text-xs font-semibold text-[rgb(var(--foreground))]">
+                        Section {section.sectionNumber}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-[rgb(var(--muted-foreground))]">
+                        Q{safeFirstIndex + 1}–{safeFirstIndex + section.questions.length} · {sectionAnswered}/{section.questions.length}
+                      </span>
+                    </a>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
+
+          <div className="flex flex-col gap-6">
+            {activeSections.map((section) => {
+              const firstIndex = fullTestQuestions.findIndex((q) => q.id === section.questions[0]?.id);
+              const safeFirstIndex = Math.max(firstIndex, 0);
+              const instruction = section.questions[0]?.instruction;
+              const questionsByNumber = questionMapForSection(section.questions, safeFirstIndex);
+              const inlineIds = instruction
+                ? inlineQuestionIds(instruction, questionsByNumber)
+                : new Set<string>();
+              const rangeFallbackIds = instruction
+                ? rangeFallbackQuestionIds(instruction, questionsByNumber)
+                : new Set<string>();
+              const handledIds = new Set([...inlineIds, ...rangeFallbackIds]);
+              const remainingQuestions = section.questions
+                .map((q, offset) => ({ q, index: safeFirstIndex + offset }))
+                .filter(({ q }) => !handledIds.has(q.id));
+              const remainingArePlaceholders = remainingQuestions.every(
+                ({ q }) => q.kind === "text" && /^Question\s+\d+$/i.test(q.text)
+              );
+              const sectionAnswered = section.questions.filter((q) => {
+                const v = answers[q.id];
+                if (q.kind === "mcq") return typeof v === "number";
+                return typeof v === "string" && v.trim().length > 0;
+              }).length;
+              const sectionProgress = section.questions.length > 0
+                ? (sectionAnswered / section.questions.length) * 100
+                : 0;
+
+              return (
+                <section
+                  key={section.sectionNumber}
+                  id={`listening-section-${section.sectionNumber}`}
+                  className="scroll-mt-36 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-sm"
+                >
+                  <div className="border-b border-[rgb(var(--border))] p-5 sm:p-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgb(var(--primary)/0.08)] text-sm font-semibold text-[rgb(var(--primary))]">
+                            {section.sectionNumber}
+                          </span>
+                          <div>
+                            <h2 className="text-lg font-semibold text-[rgb(var(--foreground))]">
+                              Section {section.sectionNumber}
+                            </h2>
+                            <p className="text-xs text-[rgb(var(--muted-foreground))]">
+                              Questions {safeFirstIndex + 1}–{safeFirstIndex + section.questions.length}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      {instruction && (
-                        <InlinePromptDocument
-                          instruction={instruction}
-                          sectionQuestions={section.questions}
-                          firstIndex={safeFirstIndex}
-                          answers={answers}
-                          revealedAnswers={revealedAnswers}
-                          aiStates={aiStates}
-                          onAnswer={handleAnswer}
-                          onToggleAnswer={toggleRevealedAnswer}
-                          onAskAi={askQuestionAi}
-                          onAiDraftChange={updateAiDraft}
-                          showResult={false}
-                        />
-                      )}
+                      <div className="w-full rounded-xl bg-[rgb(var(--surface-elevated))] p-3 sm:w-48">
+                        <div className="mb-2 flex items-center justify-between text-xs">
+                          <span className="font-medium text-[rgb(var(--foreground))]">Прогресс секции</span>
+                          <span className="text-[rgb(var(--muted-foreground))]">
+                            {sectionAnswered}/{section.questions.length}
+                          </span>
+                        </div>
+                        <Progress value={sectionProgress} className="h-1.5" />
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="flex flex-col gap-6 p-5 sm:p-6">
+                    {instruction && (
+                      <InlinePromptDocument
+                        instruction={instruction}
+                        sectionQuestions={section.questions}
+                        firstIndex={safeFirstIndex}
+                        answers={answers}
+                        revealedAnswers={revealedAnswers}
+                        aiStates={aiStates}
+                        onAnswer={handleAnswer}
+                        onToggleAnswer={toggleRevealedAnswer}
+                        onAskAi={askQuestionAi}
+                        onAiDraftChange={updateAiDraft}
+                        showResult={false}
+                      />
+                    )}
+
                     {remainingQuestions.length > 0 && (
                       remainingArePlaceholders ? (
                         <InlineAnswerGrid
@@ -2322,13 +2382,16 @@ function ListeningTestPageContent() {
                         </div>
                       )
                     )}
-                  </section>
-                );
-              })}
-            </div>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+
+          <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-4 shadow-sm">
             <Button
               size="lg"
-              className="w-full mt-6"
+              className="w-full"
               onClick={handleSubmit}
             >
               <Flag className="w-4 h-4" />
