@@ -1769,6 +1769,7 @@ function ListeningTestPageContent() {
   const [aiStates, setAiStates] = useState<Record<string, QuestionAiState>>({});
   const [submitted, setSubmitted] = useState(false);
   const [session, setSession] = useState<ListeningSession | null>(null);
+  const [currentSectionNumber, setCurrentSectionNumber] = useState<number | null>(null);
   const [audioStarted, setAudioStarted] = useState(false);
   const [audioEnded, setAudioEnded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -1853,6 +1854,45 @@ function ListeningTestPageContent() {
     return typeof v === "string" && v.trim().length > 0;
   }).length;
 
+  const answeredInQuestions = useCallback((questions: ListeningQuestion[]) => (
+    questions.filter((q) => {
+      const v = answers[q.id];
+      if (q.kind === "mcq") return typeof v === "number";
+      return typeof v === "string" && v.trim().length > 0;
+    }).length
+  ), [answers]);
+
+  useEffect(() => {
+    if (activeSections.length === 0) return;
+    setCurrentSectionNumber((current) => (
+      activeSections.some((section) => section.sectionNumber === current)
+        ? current
+        : activeSections[0]?.sectionNumber ?? null
+    ));
+  }, [activeSections]);
+
+  useEffect(() => {
+    if (activeSections.length <= 1) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        const sectionNumber = Number((visible[0]?.target as HTMLElement | undefined)?.dataset.sectionNumber);
+        if (Number.isFinite(sectionNumber)) setCurrentSectionNumber(sectionNumber);
+      },
+      { rootMargin: "-150px 0px -55% 0px", threshold: [0, 0.1, 0.25] }
+    );
+
+    activeSections.forEach((section) => {
+      const node = document.getElementById(`listening-section-${section.sectionNumber}`);
+      if (node) observer.observe(node);
+    });
+
+    return () => observer.disconnect();
+  }, [activeSections]);
+
   const score = useMemo(() => {
     if (!submitted) return 0;
     return allQuestions.filter((q) => {
@@ -1886,8 +1926,16 @@ function ListeningTestPageContent() {
     setAudioStarted(false);
     setAudioEnded(false);
     setCurrentTime(0);
+    setCurrentSectionNumber(nextSession.kind === "section" ? nextSession.sectionNumber : null);
     setSession(nextSession);
   }, [router, test?.id]);
+
+  const scrollToListeningSection = useCallback((sectionNumber: number) => {
+    setCurrentSectionNumber(sectionNumber);
+    document
+      .getElementById(`listening-section-${sectionNumber}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const toggleRevealedAnswer = useCallback((qId: string) => {
     setRevealedAnswers((prev) => {
@@ -2192,7 +2240,45 @@ function ListeningTestPageContent() {
           </Button>
         </div>
 
-        {/* Mode banner — appears under the header bar */}
+        {/* Section tabs — mirrors Reading's passage banner. */}
+        {activeSections.length > 0 && (
+          <nav className="border-t border-[rgb(var(--border))] flex">
+            {activeSections.map((section) => {
+              const sectionAnswered = answeredInQuestions(section.questions);
+              const isActive = section.sectionNumber === (
+                currentSectionNumber ?? activeSections[0]?.sectionNumber
+              );
+
+              return (
+                <button
+                  key={section.sectionNumber}
+                  type="button"
+                  onClick={() => scrollToListeningSection(section.sectionNumber)}
+                  className={cn(
+                    "flex-1 px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center justify-center gap-2",
+                    isActive
+                      ? "border-[rgb(var(--primary))] text-[rgb(var(--primary))] bg-[rgb(var(--primary)/0.04)]"
+                      : "border-transparent text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]"
+                  )}
+                >
+                  <span>Section {section.sectionNumber}</span>
+                  <span
+                    className={cn(
+                      "text-[10px] rounded-full px-1.5 py-0.5",
+                      sectionAnswered === section.questions.length && section.questions.length > 0
+                        ? "bg-[rgb(var(--success)/0.15)] text-[rgb(var(--success))]"
+                        : "bg-[rgb(var(--surface-elevated))]"
+                    )}
+                  >
+                    {sectionAnswered}/{section.questions.length}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
+
+        {/* Mode banner — appears under the section tabs */}
         <div
           className={cn(
             "border-t px-4 py-1.5 text-xs flex items-center gap-2",
@@ -2238,37 +2324,6 @@ function ListeningTestPageContent() {
             </div>
           )}
 
-          {activeSections.length > 1 && (
-            <nav className="sticky top-[86px] z-30 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface)/0.96)] p-2 shadow-sm backdrop-blur">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {activeSections.map((section) => {
-                  const firstIndex = fullTestQuestions.findIndex((q) => q.id === section.questions[0]?.id);
-                  const safeFirstIndex = Math.max(firstIndex, 0);
-                  const sectionAnswered = section.questions.filter((q) => {
-                    const v = answers[q.id];
-                    if (q.kind === "mcq") return typeof v === "number";
-                    return typeof v === "string" && v.trim().length > 0;
-                  }).length;
-
-                  return (
-                    <a
-                      key={section.sectionNumber}
-                      href={`#listening-section-${section.sectionNumber}`}
-                      className="rounded-xl px-3 py-2 text-left transition-colors hover:bg-[rgb(var(--primary)/0.06)]"
-                    >
-                      <span className="block text-xs font-semibold text-[rgb(var(--foreground))]">
-                        Section {section.sectionNumber}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-[rgb(var(--muted-foreground))]">
-                        Q{safeFirstIndex + 1}–{safeFirstIndex + section.questions.length} · {sectionAnswered}/{section.questions.length}
-                      </span>
-                    </a>
-                  );
-                })}
-              </div>
-            </nav>
-          )}
-
           <div className="flex flex-col gap-6">
             {activeSections.map((section) => {
               const firstIndex = fullTestQuestions.findIndex((q) => q.id === section.questions[0]?.id);
@@ -2288,11 +2343,7 @@ function ListeningTestPageContent() {
               const remainingArePlaceholders = remainingQuestions.every(
                 ({ q }) => q.kind === "text" && /^Question\s+\d+$/i.test(q.text)
               );
-              const sectionAnswered = section.questions.filter((q) => {
-                const v = answers[q.id];
-                if (q.kind === "mcq") return typeof v === "number";
-                return typeof v === "string" && v.trim().length > 0;
-              }).length;
+              const sectionAnswered = answeredInQuestions(section.questions);
               const sectionProgress = section.questions.length > 0
                 ? (sectionAnswered / section.questions.length) * 100
                 : 0;
@@ -2301,6 +2352,7 @@ function ListeningTestPageContent() {
                 <section
                   key={section.sectionNumber}
                   id={`listening-section-${section.sectionNumber}`}
+                  data-section-number={section.sectionNumber}
                   className="scroll-mt-36 rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-sm"
                 >
                   <div className="border-b border-[rgb(var(--border))] p-5 sm:p-6">
