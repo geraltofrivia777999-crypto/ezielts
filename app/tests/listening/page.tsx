@@ -825,38 +825,6 @@ function InlineAnswerInput({
   );
 }
 
-function QuestionTextWithOptions({ text }: { text: string }) {
-  const trimmed = text.trim();
-  const questionEnd = trimmed.indexOf("?");
-  if (questionEnd === -1) return <>{trimmed}</>;
-
-  const question = trimmed.slice(0, questionEnd + 1);
-  const optionText = trimmed.slice(questionEnd + 1).trim();
-  if (!optionText) return <>{question}</>;
-
-  const protectedText = optionText.replace(/\b(Mr|Mrs|Ms|Dr|Prof)\.\s*/g, "$1__DOT__ ");
-  const options = protectedText
-    .split(/\.\s+/)
-    .map((part) => part.replace(/__DOT__/g, ".").replace(/\.$/, "").trim())
-    .filter(Boolean);
-
-  if (options.length < 2 || options.length > 5) return <>{trimmed}</>;
-
-  return (
-    <span className="inline-flex flex-col gap-2 align-top">
-      <span>{question}</span>
-      <span className="inline-flex flex-wrap gap-x-4 gap-y-1 text-[rgb(var(--foreground))]">
-        {options.map((option, i) => (
-          <span key={`${option}-${i}`} className="inline-flex gap-1">
-            <strong>{String.fromCharCode(65 + i)}.</strong>
-            <span>{option}</span>
-          </span>
-        ))}
-      </span>
-    </span>
-  );
-}
-
 function expectedAnswerText(q: ListeningQuestion): string | null {
   if (q.expectedText) return q.expectedText;
   if (q.kind === "mcq" && typeof q.answer === "number") {
@@ -1770,8 +1738,8 @@ function ListeningTestPageContent() {
   const [submitted, setSubmitted] = useState(false);
   const [session, setSession] = useState<ListeningSession | null>(null);
   const [currentSectionNumber, setCurrentSectionNumber] = useState<number | null>(null);
-  const [audioStarted, setAudioStarted] = useState(false);
-  const [audioEnded, setAudioEnded] = useState(false);
+  const [startedSections, setStartedSections] = useState<Set<number>>(() => new Set());
+  const [endedSections, setEndedSections] = useState<Set<number>>(() => new Set());
   const [currentTime, setCurrentTime] = useState(0);
   // STRICT = real-exam rules (one-shot audio, no pause/rewind).
   // CHILL  = training mode (full control over the audio).
@@ -1871,27 +1839,26 @@ function ListeningTestPageContent() {
     ));
   }, [activeSections]);
 
-  useEffect(() => {
-    if (activeSections.length <= 1) return;
+  const currentAudioSectionNumber = currentSectionNumber ?? activeSections[0]?.sectionNumber ?? null;
+  const hasAnyAudioStarted = startedSections.size > 0;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        const sectionNumber = Number((visible[0]?.target as HTMLElement | undefined)?.dataset.sectionNumber);
-        if (Number.isFinite(sectionNumber)) setCurrentSectionNumber(sectionNumber);
-      },
-      { rootMargin: "-150px 0px -55% 0px", threshold: [0, 0.1, 0.25] }
-    );
-
-    activeSections.forEach((section) => {
-      const node = document.getElementById(`listening-section-${section.sectionNumber}`);
-      if (node) observer.observe(node);
+  const markCurrentSectionStarted = useCallback(() => {
+    if (currentAudioSectionNumber === null) return;
+    setStartedSections((prev) => {
+      const next = new Set(prev);
+      next.add(currentAudioSectionNumber);
+      return next;
     });
+  }, [currentAudioSectionNumber]);
 
-    return () => observer.disconnect();
-  }, [activeSections]);
+  const markCurrentSectionEnded = useCallback(() => {
+    if (currentAudioSectionNumber === null) return;
+    setEndedSections((prev) => {
+      const next = new Set(prev);
+      next.add(currentAudioSectionNumber);
+      return next;
+    });
+  }, [currentAudioSectionNumber]);
 
   const score = useMemo(() => {
     if (!submitted) return 0;
@@ -1923,19 +1890,12 @@ function ListeningTestPageContent() {
     setAiStates({});
     setSubmitted(false);
     setLimitNotice(null);
-    setAudioStarted(false);
-    setAudioEnded(false);
+    setStartedSections(new Set());
+    setEndedSections(new Set());
     setCurrentTime(0);
     setCurrentSectionNumber(nextSession.kind === "section" ? nextSession.sectionNumber : null);
     setSession(nextSession);
   }, [router, test?.id]);
-
-  const scrollToListeningSection = useCallback((sectionNumber: number) => {
-    setCurrentSectionNumber(sectionNumber);
-    document
-      .getElementById(`listening-section-${sectionNumber}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
 
   const toggleRevealedAnswer = useCallback((qId: string) => {
     setRevealedAnswers((prev) => {
@@ -2086,11 +2046,27 @@ function ListeningTestPageContent() {
     );
   }
 
-  const audioSources = activeSections
-    .map((section) => ({
-      label: `Section ${section.sectionNumber}`,
-      url: section.audioUrl ?? (section.sectionNumber === 1 ? test.audioUrl : null),
-    }))
+  const displayedSection =
+    activeSections.find((section) => section.sectionNumber === currentAudioSectionNumber) ??
+    activeSections[0];
+  const firstActiveSection = activeSections.length > 0
+    ? Math.min(...activeSections.map((section) => section.sectionNumber))
+    : 0;
+  const lastActiveSection = activeSections.length > 0
+    ? Math.max(...activeSections.map((section) => section.sectionNumber))
+    : 0;
+  const currentSectionStarted = displayedSection
+    ? startedSections.has(displayedSection.sectionNumber)
+    : false;
+  const currentSectionEnded = displayedSection
+    ? endedSections.has(displayedSection.sectionNumber)
+    : false;
+  const audioSources = (displayedSection
+    ? [{
+        label: `Section ${displayedSection.sectionNumber}`,
+        url: displayedSection.audioUrl ?? (displayedSection.sectionNumber === 1 ? test.audioUrl : null),
+      }]
+    : [])
     .filter((source): source is { label: string; url: string } => Boolean(source.url));
 
   // For ErrorAnalysis we need (question.answer: number). Only MCQ questions
@@ -2165,6 +2141,10 @@ function ListeningTestPageContent() {
                 setAnswers({});
                 setRevealedAnswers(new Set());
                 setAiStates({});
+                setStartedSections(new Set());
+                setEndedSections(new Set());
+                setCurrentSectionNumber(null);
+                setCurrentTime(0);
               }}
             >
               К выбору режима
@@ -2204,8 +2184,8 @@ function ListeningTestPageContent() {
               return (
                 <button
                   key={m}
-                  onClick={() => !audioStarted && setMode(m)}
-                  disabled={audioStarted}
+                  onClick={() => !hasAnyAudioStarted && setMode(m)}
+                  disabled={hasAnyAudioStarted}
                   title={
                     m === "strict"
                       ? "Strict: аудио играет один раз, нельзя ставить на паузу"
@@ -2218,7 +2198,7 @@ function ListeningTestPageContent() {
                         ? "bg-[rgb(var(--warning)/0.15)] text-[rgb(var(--warning))]"
                         : "bg-[rgb(var(--primary)/0.12)] text-[rgb(var(--primary))]"
                       : "text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))]",
-                    audioStarted && "opacity-60 cursor-not-allowed"
+                    hasAnyAudioStarted && "opacity-60 cursor-not-allowed"
                   )}
                 >
                   <Icon className="w-3 h-3" />
@@ -2253,7 +2233,10 @@ function ListeningTestPageContent() {
                 <button
                   key={section.sectionNumber}
                   type="button"
-                  onClick={() => scrollToListeningSection(section.sectionNumber)}
+                  onClick={() => {
+                    setCurrentSectionNumber(section.sectionNumber);
+                    setCurrentTime(0);
+                  }}
                   className={cn(
                     "flex-1 px-4 py-2 text-xs font-medium border-b-2 transition-colors flex items-center justify-center gap-2",
                     isActive
@@ -2304,28 +2287,38 @@ function ListeningTestPageContent() {
       <div>
         <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
           <AudioPlayer
+            key={`section-audio-${displayedSection?.sectionNumber ?? "none"}-${audioSources[0]?.url ?? "missing"}`}
             audioSources={audioSources}
             duration={test.duration}
             onTimeUpdate={setCurrentTime}
-            onEnded={() => setAudioEnded(true)}
-            started={audioStarted}
-            onStart={() => setAudioStarted(true)}
+            onEnded={markCurrentSectionEnded}
+            started={currentSectionStarted}
+            onStart={markCurrentSectionStarted}
             mode={mode}
           />
 
+          {currentSectionEnded && displayedSection && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-[rgb(var(--success)/0.18)] bg-[rgb(var(--success)/0.08)] p-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--success))]" />
+              <p className="text-xs text-[rgb(var(--foreground))]">
+                Аудио Section {displayedSection.sectionNumber} завершено. Можно перейти к следующей секции или сдать тест.
+              </p>
+            </div>
+          )}
+
           {/* Real-IELTS behaviour: questions are visible BEFORE audio starts so
               candidates can read ahead — they just can't submit until audio ends. */}
-          {!audioStarted && (
+          {!currentSectionStarted && (
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-blue-50 border border-blue-100">
               <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
               <p className="text-xs text-[rgb(var(--foreground))]">
-                Прочитайте вопросы заранее, затем нажмите <strong>Play</strong>. Записывайте ответы по ходу аудио — оно проигрывается <strong>один раз</strong>.
+                Прочитайте вопросы Section {displayedSection?.sectionNumber ?? ""} заранее, затем нажмите <strong>Play</strong>. Записывайте ответы по ходу аудио — в strict-режиме секция проигрывается <strong>один раз</strong>.
               </p>
             </div>
           )}
 
           <div className="flex flex-col gap-6">
-            {activeSections.map((section) => {
+            {(displayedSection ? [displayedSection] : []).map((section) => {
               const firstIndex = fullTestQuestions.findIndex((q) => q.id === section.questions[0]?.id);
               const safeFirstIndex = Math.max(firstIndex, 0);
               const instruction = section.questions[0]?.instruction;
@@ -2438,6 +2431,35 @@ function ListeningTestPageContent() {
                 </section>
               );
             })}
+
+            {session.kind === "full" && displayedSection && (
+              <div className="flex gap-2 pt-2">
+                {displayedSection.sectionNumber > firstActiveSection && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setCurrentSectionNumber(displayedSection.sectionNumber - 1);
+                      setCurrentTime(0);
+                    }}
+                  >
+                    ← Section {displayedSection.sectionNumber - 1}
+                  </Button>
+                )}
+                {displayedSection.sectionNumber < lastActiveSection && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setCurrentSectionNumber(displayedSection.sectionNumber + 1);
+                      setCurrentTime(0);
+                    }}
+                  >
+                    Section {displayedSection.sectionNumber + 1} →
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-4 shadow-sm">
