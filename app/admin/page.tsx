@@ -1,51 +1,56 @@
-import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Crown, FileText, Headphones, PenLine, Mic2, TrendingUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { requireAdmin } from "@/lib/admin";
+import { getAdminContentCounts, getAdminUsersData } from "@/lib/admin-data";
+import { Users, Crown, FileText, Headphones, PenLine, Mic2, TrendingUp, AlertTriangle } from "lucide-react";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
 
 export default async function AdminDashboard() {
-  const sb = await createClient();
+  await requireAdmin();
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const sbAny = sb as any;
-
-  // Parallel counts
-  const [
-    totalUsers,
-    proUsers,
-    readingTests,
-    listeningTests,
-    writingTasks,
-    speakingTopics,
-    totalAttempts,
-    recentSignups,
-  ] = await Promise.all([
-    sbAny.from("profiles").select("*", { count: "exact", head: true }),
-    sbAny.from("subscriptions").select("*", { count: "exact", head: true }).neq("plan", "free"),
-    sbAny.from("reading_tests").select("*", { count: "exact", head: true }),
-    sbAny.from("listening_tests").select("*", { count: "exact", head: true }),
-    sbAny.from("writing_tasks").select("*", { count: "exact", head: true }),
-    sbAny.from("speaking_topics").select("*", { count: "exact", head: true }),
-    sbAny.from("user_test_attempts").select("*", { count: "exact", head: true }),
-    sbAny.from("profiles").select("id, name, email, created_at").order("created_at", { ascending: false }).limit(5),
+  const [usersData, contentCounts] = await Promise.all([
+    getAdminUsersData(),
+    getAdminContentCounts(),
   ]);
 
   const stats = [
-    { label: "Всего пользователей", value: totalUsers.count ?? 0, icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
-    { label: "Pro подписки", value: proUsers.count ?? 0, icon: Crown, color: "text-amber-500", bg: "bg-amber-50" },
-    { label: "Попыток тестов", value: totalAttempts.count ?? 0, icon: TrendingUp, color: "text-teal-500", bg: "bg-teal-50" },
+    { label: "Auth пользователей", value: usersData.totalAuthUsers, icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
+    { label: "Активные платные", value: usersData.totalPaidUsers, icon: Crown, color: "text-amber-500", bg: "bg-amber-50" },
+    { label: "Попыток тестов", value: usersData.totalAttempts, icon: TrendingUp, color: "text-teal-500", bg: "bg-teal-50" },
   ];
 
   const content = [
-    { label: "Reading тестов", value: readingTests.count ?? 0, icon: FileText, color: "text-blue-500" },
-    { label: "Listening тестов", value: listeningTests.count ?? 0, icon: Headphones, color: "text-purple-500" },
-    { label: "Writing тасков", value: writingTasks.count ?? 0, icon: PenLine, color: "text-teal-500" },
-    { label: "Speaking топиков", value: speakingTopics.count ?? 0, icon: Mic2, color: "text-violet-500" },
+    { label: "Reading тестов", value: contentCounts.readingTests, icon: FileText, color: "text-blue-500" },
+    { label: "Listening тестов", value: contentCounts.listeningTests, icon: Headphones, color: "text-purple-500" },
+    { label: "Writing тасков", value: contentCounts.writingTasks, icon: PenLine, color: "text-teal-500" },
+    { label: "Speaking топиков", value: contentCounts.speakingTopics, icon: Mic2, color: "text-violet-500" },
   ];
+  const recentSignups = usersData.users.slice(0, 8);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-1">Дашборд</h1>
-      <p className="text-sm text-[rgb(var(--muted-foreground))] mb-8">Общая статистика платформы</p>
+      <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-1">Дашборд</h1>
+          <p className="text-sm text-[rgb(var(--muted-foreground))]">
+            Живые данные из Supabase. Обновлено: {formatDateTime(usersData.generatedAt)}
+          </p>
+        </div>
+        <Badge variant="outline">{usersData.totalProfiles} профилей</Badge>
+      </div>
 
       {/* User stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -63,6 +68,21 @@ export default async function AdminDashboard() {
           </Card>
         ))}
       </div>
+
+      {usersData.missingProfiles > 0 && (
+        <Card className="mb-8 border-[rgb(var(--warning)/0.35)] bg-[rgb(var(--warning)/0.06)]">
+          <CardContent className="p-5 flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[rgb(var(--warning))]" />
+            <div>
+              <div className="font-semibold text-[rgb(var(--foreground))]">Есть пользователи без строки в profiles</div>
+              <p className="mt-1 text-sm text-[rgb(var(--muted-foreground))]">
+                Найдено {usersData.missingProfiles}. Они теперь отображаются в админке через auth.users, но для полноценной
+                статистики им нужно восстановить профиль и free-подписку.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Content stats */}
       <h2 className="text-lg font-bold text-[rgb(var(--foreground))] mb-3">Контент в базе</h2>
@@ -83,25 +103,42 @@ export default async function AdminDashboard() {
       {/* Recent signups */}
       <h2 className="text-lg font-bold text-[rgb(var(--foreground))] mb-3">Последние регистрации</h2>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-[rgb(var(--muted)/0.05)] border-b border-[rgb(var(--border))]">
               <tr>
                 <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Имя</th>
                 <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Email</th>
-                <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Дата</th>
+                <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">План</th>
+                <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Активность</th>
+                <th className="text-left p-3 font-medium text-[rgb(var(--muted-foreground))]">Регистрация</th>
               </tr>
             </thead>
             <tbody>
-              {((recentSignups.data ?? []) as Array<{id: string; name: string | null; email: string; created_at: string}>).map((u) => (
+              {recentSignups.map((u) => (
                 <tr key={u.id} className="border-b border-[rgb(var(--border))] last:border-0">
                   <td className="p-3 text-[rgb(var(--foreground))]">{u.name ?? "—"}</td>
                   <td className="p-3 text-[rgb(var(--muted-foreground))]">{u.email}</td>
+                  <td className="p-3">
+                    <Badge variant={u.subscription?.plan === "free" || !u.subscription ? "secondary" : "default"}>
+                      {u.subscription?.plan ?? "free"}
+                    </Badge>
+                  </td>
                   <td className="p-3 text-[rgb(var(--muted-foreground))]">
-                    {new Date(u.created_at).toLocaleDateString("ru-RU")}
+                    {u.attemptsCount} попыток
+                  </td>
+                  <td className="p-3 text-[rgb(var(--muted-foreground))] whitespace-nowrap">
+                    {formatDateTime(u.createdAt)}
                   </td>
                 </tr>
               ))}
+              {recentSignups.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-[rgb(var(--muted-foreground))]">
+                    Пользователей пока нет.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </CardContent>
