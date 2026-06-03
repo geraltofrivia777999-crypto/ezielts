@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import {
-  ArrowRight,
   Check,
   ChevronLeft,
   ClipboardCheck,
   FileCheck2,
   Mail,
+  MessageCircle,
   Shield,
   Sparkles,
 } from "lucide-react";
@@ -239,10 +240,10 @@ export default function GuaranteePage() {
             </p>
           </div>
           <Button asChild className="rounded-xl">
-            <Link href="/pricing">
-              Выбрать тариф
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="h-4 w-4" />
+              {WHATSAPP_CTA_LABEL}
+            </a>
           </Button>
         </section>
 

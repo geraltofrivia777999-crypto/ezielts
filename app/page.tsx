@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Navbar } from "@/components/layout/navbar";
+import { WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { PRICING_PLANS } from "@/lib/plans";
 import {
   CheckCircle2,
@@ -633,7 +634,7 @@ export default async function LandingPage({
                       className="w-full"
                       asChild
                     >
-                      <Link href={plan.checkoutHref}>Выбрать тариф</Link>
+                      <a href={plan.checkoutHref} target="_blank" rel="noopener noreferrer">{WHATSAPP_CTA_LABEL}</a>
                     </Button>
 
                     <ul className="flex flex-col gap-2.5">

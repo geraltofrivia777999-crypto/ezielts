@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { getPricingPlan } from "@/lib/plans";
-import { Check, ChevronLeft, CreditCard, Shield } from "lucide-react";
+import { Check, ChevronLeft, MessageCircle, Shield } from "lucide-react";
 
 type CheckoutPageProps = {
   searchParams: Promise<{ plan?: string | string[] }>;
@@ -55,15 +56,17 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
         </section>
 
         <aside className="rounded-2xl border border-[rgb(var(--border))] bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-[rgb(var(--foreground))]">Оплата</h2>
+          <h2 className="text-xl font-bold text-[rgb(var(--foreground))]">Связаться для оплаты</h2>
           <p className="mt-2 text-sm leading-6 text-[rgb(var(--muted-foreground))]">
-            Тариф уже выбран и передаётся как <span className="font-mono text-[rgb(var(--foreground))]">{plan.id}</span>.
-            После подключения платежного провайдера эта кнопка будет вести на оплату и активировать нужный plan в Supabase.
+            Эквайринг на сайте пока не подключён. Напишите нам в WhatsApp, мы подтвердим тариф{" "}
+            <span className="font-mono text-[rgb(var(--foreground))]">{plan.id}</span> и поможем с оплатой.
           </p>
 
-          <Button className="mt-6 h-12 w-full rounded-xl" disabled>
-            <CreditCard className="h-4 w-4" />
-            Оплата FreedomPay скоро
+          <Button asChild className="mt-6 h-12 w-full rounded-xl">
+            <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="h-4 w-4" />
+              {WHATSAPP_CTA_LABEL}
+            </a>
           </Button>
 
           <Button asChild variant="outline" className="mt-3 h-12 w-full rounded-xl">

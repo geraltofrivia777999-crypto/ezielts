@@ -2,26 +2,25 @@
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { cn } from "@/lib/utils";
 import {
   Send,
-  Sparkles,
-  ChevronLeft,
   Bot,
   User,
   Lock,
   Loader2,
+  MessageCircle,
   BookOpen,
   Mic2,
   PenLine,
   Headphones,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getTutorMessages } from "@/lib/supabase/queries";
+import { getTutorMessages, getUserSummary } from "@/lib/supabase/queries";
 import { AppShell } from "@/components/layout/app-shell";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -66,7 +65,7 @@ function TutorPageInner() {
     },
   ]);
   const [input, setInput] = useState(initialQuestion);
-  const [autoSent, setAutoSent] = useState(false);
+  const autoSentRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [isPro, setIsPro] = useState<boolean | null>(null);
   const [paywalled, setPaywalled] = useState(false);
@@ -84,24 +83,24 @@ function TutorPageInner() {
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
 
-      const { data: summary } = await (sb as any)
-        .from("v_user_summary")
-        .select("is_pro, plan, subscription_status")
-        .eq("id", user.id)
-        .single();
-      const pro = Boolean(summary?.is_pro)
-        || (summary?.plan && summary.plan !== "free" && summary.subscription_status === "active");
+      const summary = await getUserSummary(sb, user.id);
+      const pro = Boolean(
+        summary?.is_pro || (summary?.plan && summary.plan !== "free" && summary.subscription_status === "active")
+      );
       setIsPro(pro);
       if (!pro) setPaywalled(true);
 
-      const history = await getTutorMessages(sb, user.id, 50);
+      const history = (await getTutorMessages(sb, user.id, 50)) as unknown as Array<{
+        id: string;
+        role: Role;
+        content: string;
+      }>;
       if (history.length === 0) return;
 
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      const loaded: Message[] = (history as any[]).map((m) => ({
-        id: m.id as string,
-        role: m.role as Role,
-        content: m.content as string,
+      const loaded: Message[] = history.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
       }));
 
       // Replace welcome with full history (keep welcome as first)
@@ -112,8 +111,8 @@ function TutorPageInner() {
 
   // Auto-send pre-filled question from URL ?q=...
   useEffect(() => {
-    if (initialQuestion && !autoSent) {
-      setAutoSent(true);
+    if (initialQuestion && !autoSentRef.current) {
+      autoSentRef.current = true;
       const timer = setTimeout(() => {
         sendMessage(initialQuestion);
         setInput("");
@@ -121,7 +120,7 @@ function TutorPageInner() {
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialQuestion, autoSent]);
+  }, [initialQuestion]);
 
   async function sendMessage(text: string) {
     if (!text.trim() || loading) return;
@@ -301,12 +300,12 @@ function TutorPageInner() {
             <p className="text-sm text-[rgb(var(--muted-foreground))] mb-4">
               Купите Pro, чтобы открыть AI-тьютора, разборы Reading/Listening, AI Writing и Speaking Coach.
             </p>
-            <Link href="/pricing">
-              <Button size="sm" className="gap-2">
-                <Sparkles className="w-4 h-4" />
-                Купить подписку
-              </Button>
-            </Link>
+            <Button asChild size="sm" className="gap-2">
+              <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="w-4 h-4" />
+                {WHATSAPP_CTA_LABEL}
+              </a>
+            </Button>
           </div>
         )}
 

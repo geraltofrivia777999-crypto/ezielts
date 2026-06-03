@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/layout/app-shell";
 import { ProofSections } from "@/components/marketing/proof-sections";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { cn } from "@/lib/utils";
 import {
   Users, UserCog, CheckCircle2, Play,
@@ -100,8 +101,6 @@ const PLANS = [
   },
 ];
 
-const WHATSAPP_URL = "https://wa.me/77001234567?text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5!%20%D0%A5%D0%BE%D1%87%D1%83%20%D1%83%D0%B7%D0%BD%D0%B0%D1%82%D1%8C%20%D0%BF%D1%80%D0%BE%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5";
-
 export default function LivePage() {
   return (
     <AppShell title="Живое Обучение">
@@ -177,13 +176,13 @@ export default function LivePage() {
               </div>
 
               <a
-                href={WHATSAPP_URL}
+                href={WHATSAPP_CONTACT_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-7 flex items-center justify-center gap-2 rounded-xl bg-[#22B36A] px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#1EA05F]"
               >
                 <MessageCircle className="h-4 w-4" />
-                Записаться
+                {WHATSAPP_CTA_LABEL}
               </a>
             </div>
           ))}
@@ -209,13 +208,13 @@ export default function LivePage() {
             Напишите нам в WhatsApp — подберём подходящий формат и расскажем подробнее
           </p>
           <a
-            href={WHATSAPP_URL}
+            href={WHATSAPP_CONTACT_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-white text-[rgb(var(--primary))] font-semibold px-6 py-3 rounded-xl hover:bg-white/90 transition-colors text-sm"
           >
             <MessageCircle className="w-4 h-4" />
-            Написать в WhatsApp
+            {WHATSAPP_CTA_LABEL}
           </a>
         </div>
 

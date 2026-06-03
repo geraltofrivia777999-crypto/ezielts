@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { cn } from "@/lib/utils";
 import { getPlanDisplayName } from "@/lib/plans";
 import {
@@ -210,9 +210,12 @@ export default function SettingsPage() {
               </p>
             </div>
             {plan === "free" && (
-              <Link href="/pricing">
-                <Button size="sm">Улучшить</Button>
-              </Link>
+              <Button asChild size="sm">
+                <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle className="w-4 h-4" />
+                  {WHATSAPP_CTA_LABEL}
+                </a>
+              </Button>
             )}
           </CardContent>
         </Card>

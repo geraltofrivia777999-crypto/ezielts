@@ -6,10 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   BookOpen,
   CheckCircle2,
-  Crown,
   Headphones,
   Loader2,
-  Lock,
+  MessageCircle,
   Mic2,
   PenLine,
   Shuffle,
@@ -18,6 +17,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { hasActiveProAccess } from "@/lib/supabase/access";
 import { parseSpeakingTopic } from "@/lib/test-mapping/content-filter";
 import { cn } from "@/lib/utils";
@@ -236,10 +236,10 @@ function TestCard({
         </div>
         {locked ? (
           <Button size="sm" variant="outline" asChild>
-            <Link href="/pricing">
-              <Lock className="h-3.5 w-3.5" />
-              Купить Pro
-            </Link>
+            <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="h-3.5 w-3.5" />
+              {WHATSAPP_CTA_LABEL}
+            </a>
           </Button>
         ) : (
           <Button size="sm" asChild>
@@ -418,7 +418,7 @@ export function TestsCatalogClient() {
 
   function startRandom() {
     if (freeLocked) {
-      router.push("/pricing");
+      window.open(WHATSAPP_CONTACT_URL, "_blank", "noopener,noreferrer");
       return;
     }
     const uncompleted = activeItems.filter((item) => !bestAttempt(attempts, item.type, item.id));
@@ -496,10 +496,10 @@ export function TestsCatalogClient() {
               </p>
             </div>
             <Button asChild variant={freeLocked ? "default" : "outline"}>
-              <Link href="/pricing">
-                <Crown className="h-4 w-4" />
-                Открыть Pro
-              </Link>
+              <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-4 w-4" />
+                {WHATSAPP_CTA_LABEL}
+              </a>
             </Button>
           </div>
         )}
@@ -553,8 +553,8 @@ export function TestsCatalogClient() {
                 </div>
               </div>
               <Button onClick={startRandom} disabled={loading || activeItems.length === 0}>
-                {freeLocked ? <Crown className="h-4 w-4" /> : <Shuffle className="h-4 w-4" />}
-                {freeLocked ? "Открыть Pro" : "Начать"}
+                {freeLocked ? <MessageCircle className="h-4 w-4" /> : <Shuffle className="h-4 w-4" />}
+                {freeLocked ? WHATSAPP_CTA_LABEL : "Начать"}
               </Button>
             </div>
           </div>

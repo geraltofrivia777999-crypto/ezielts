@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PRICING_PLANS, type PricingPlan } from "@/lib/plans";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import {
   CheckCircle2,
   ChevronRight,
-  CreditCard,
   Crown,
   MessageCircle,
   Shield,
@@ -18,8 +18,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-
-const WHATSAPP_URL = "https://wa.me/77001234567?text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5!%20%D0%A5%D0%BE%D1%87%D1%83%20%D1%83%D0%B7%D0%BD%D0%B0%D1%82%D1%8C%20%D0%BF%D1%80%D0%BE%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5";
 
 const ACCENT_STYLES: Record<PricingPlan["accent"], {
   card: string;
@@ -121,10 +119,10 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
         )}
 
         <Button asChild className={cn("relative mt-auto h-10 w-full rounded-xl text-sm shadow-sm", styles.button)}>
-          <Link href={plan.checkoutHref}>
-            <CreditCard className="h-4 w-4" />
-            Выбрать тариф
-          </Link>
+          <a href={plan.checkoutHref} target="_blank" rel="noopener noreferrer">
+            <MessageCircle className="h-4 w-4" />
+            {WHATSAPP_CTA_LABEL}
+          </a>
         </Button>
       </div>
     </article>
@@ -198,13 +196,13 @@ export default function PricingPage() {
             Напишите нам в WhatsApp — подберём подходящий формат и расскажем подробнее
           </p>
           <a
-            href={WHATSAPP_URL}
+            href={WHATSAPP_CONTACT_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-[rgb(var(--primary))] transition-colors hover:bg-white/90"
           >
             <MessageCircle className="h-4 w-4" />
-            Написать в WhatsApp
+            {WHATSAPP_CTA_LABEL}
           </a>
         </section>
       </main>

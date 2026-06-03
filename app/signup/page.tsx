@@ -5,22 +5,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import {
   Eye,
   EyeOff,
   Mail,
   Lock,
   User,
-  ChevronRight,
   MailCheck,
   MessageCircle,
   Crown,
-  CalendarDays,
-  Bot,
-  BarChart3,
-  FileCheck2,
-  Sparkles,
   CheckCircle2,
   ArrowRight,
   Shield,
@@ -129,6 +123,14 @@ function SignupContent() {
     setStep("premium");
     router.refresh();
   }
+
+  // Mark premium popup as seen — prevents middleware from redirecting here again.
+  useEffect(() => {
+    if (visibleStep === "premium") {
+      document.cookie = "ez_seen_premium=1; path=/; max-age=31536000; SameSite=Lax";
+      document.cookie = "ez_show_premium=; path=/; max-age=0";
+    }
+  }, [visibleStep]);
 
   // ─── Step 1: Account ───────────────────────────────────────────────────────
   if (visibleStep === "account") {
@@ -286,15 +288,6 @@ function SignupContent() {
   }
 
   // ─── Step 4: Premium prompt ───────────────────────────────────────────────
-  // Mark premium popup as seen — prevents middleware from redirecting here again
-  useEffect(() => {
-    if (visibleStep === "premium") {
-      document.cookie = "ez_seen_premium=1; path=/; max-age=31536000; SameSite=Lax";
-      // Clear the show_premium cookie since user is now seeing the popup
-      document.cookie = "ez_show_premium=; path=/; max-age=0";
-    }
-  }, [visibleStep]);
-
   if (visibleStep === "premium") {
     return (
       <div className="min-h-screen bg-[rgb(var(--background))] relative overflow-hidden">
@@ -352,10 +345,10 @@ function SignupContent() {
               {/* CTA inside card */}
               <div className="p-5 sm:p-6">
                 <Button size="lg" className="w-full shadow-lg shadow-[rgb(var(--primary)/0.25)]" asChild>
-                  <Link href="/checkout?plan=pro_quarterly">
-                    Начать подготовку с Pro
+                  <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+                    {WHATSAPP_CTA_LABEL}
                     <ArrowRight className="h-4 w-4" />
-                  </Link>
+                  </a>
                 </Button>
                 <div className="mt-3 flex items-center justify-center gap-4 text-[11px] text-[rgb(var(--muted-foreground))]">
                   <span className="flex items-center gap-1">

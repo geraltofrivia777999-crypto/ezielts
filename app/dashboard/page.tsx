@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { cn, formatBand } from "@/lib/utils";
 import {
   BookOpen, Headphones, PenLine, Mic2, Flame,
   Target, ChevronRight, CheckCircle2,
-  Zap, Star, Loader2, Sparkles, Send, Crown,
-  Calendar, Edit3, TrendingUp,
+  Zap, Star, Loader2, Sparkles, Send,
+  Calendar, Edit3, MessageCircle,
 } from "lucide-react";
 import { BandLineChart } from "@/app/progress/_components/band-line-chart";
 import { createClient } from "@/lib/supabase/client";
@@ -117,7 +117,10 @@ export default function DashboardPage() {
               </div>
             </div>
             <Button asChild className="self-stretch sm:self-auto">
-              <Link href="/pricing"><Crown className="w-4 h-4 mr-1.5" />Открыть Pro</Link>
+              <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="w-4 h-4 mr-1.5" />
+                {WHATSAPP_CTA_LABEL}
+              </a>
             </Button>
           </div>
         )}
