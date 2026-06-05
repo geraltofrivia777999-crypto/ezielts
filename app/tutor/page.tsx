@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { cn } from "@/lib/utils";
 import {
   Send,
@@ -13,7 +13,6 @@ import {
   User,
   Lock,
   Loader2,
-  MessageCircle,
   BookOpen,
   Mic2,
   PenLine,
@@ -300,12 +299,7 @@ function TutorPageInner() {
             <p className="text-sm text-[rgb(var(--muted-foreground))] mb-4">
               Купите Pro, чтобы открыть AI-тьютора, разборы Reading/Listening, AI Writing и Speaking Coach.
             </p>
-            <Button asChild size="sm" className="gap-2">
-              <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="w-4 h-4" />
-                {WHATSAPP_CTA_LABEL}
-              </a>
-            </Button>
+            <PaymentChoiceButton size="sm" />
           </div>
         )}
 

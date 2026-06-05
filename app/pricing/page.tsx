@@ -3,16 +3,15 @@
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProofSections } from "@/components/marketing/proof-sections";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PRICING_PLANS, type PricingPlan } from "@/lib/plans";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import {
   CheckCircle2,
   ChevronRight,
   Crown,
-  MessageCircle,
   Shield,
   Sparkles,
   Users,
@@ -118,12 +117,7 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
           </ul>
         )}
 
-        <Button asChild className={cn("relative mt-auto h-10 w-full rounded-xl text-sm shadow-sm", styles.button)}>
-          <a href={plan.checkoutHref} target="_blank" rel="noopener noreferrer">
-            <MessageCircle className="h-4 w-4" />
-            {WHATSAPP_CTA_LABEL}
-          </a>
-        </Button>
+        <PaymentChoiceButton className={cn("relative mt-auto h-10 w-full rounded-xl text-sm shadow-sm", styles.button)} />
       </div>
     </article>
   );
@@ -193,17 +187,11 @@ export default function PricingPage() {
         <section className="rounded-2xl bg-gradient-to-r from-[rgb(var(--primary))] to-violet-500 p-8 text-center text-white">
           <h2 className="mb-2 text-xl font-bold">Готовы начать подготовку?</h2>
           <p className="mx-auto mb-5 max-w-md text-sm text-white/80">
-            Напишите нам в WhatsApp — подберём подходящий формат и расскажем подробнее
+            Нажмите оплатить и выберите удобный способ: Telegram или WhatsApp.
           </p>
-          <a
-            href={WHATSAPP_CONTACT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-[rgb(var(--primary))] transition-colors hover:bg-white/90"
-          >
-            <MessageCircle className="h-4 w-4" />
-            {WHATSAPP_CTA_LABEL}
-          </a>
+          <PaymentChoiceButton
+            className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90"
+          />
         </section>
       </main>
     </AppShell>

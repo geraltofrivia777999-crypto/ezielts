@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { cn, formatBand } from "@/lib/utils";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import {
   BookOpen,
   Headphones,
@@ -11,7 +11,6 @@ import {
   Loader2,
   BarChart3,
   Lock,
-  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -118,12 +117,7 @@ function ProgressPaywall() {
               историю попыток, слабые места и динамику по каждому навыку.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button asChild className="flex-1">
-                <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="h-4 w-4" />
-                  {WHATSAPP_CTA_LABEL}
-                </a>
-              </Button>
+              <PaymentChoiceButton className="flex-1" />
               <Button asChild variant="outline" className="flex-1">
                 <Link href="/tests">К тестам</Link>
               </Button>

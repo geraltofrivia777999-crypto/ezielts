@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Navbar } from "@/components/layout/navbar";
-import { WHATSAPP_CTA_LABEL } from "@/lib/contact";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { PRICING_PLANS } from "@/lib/plans";
 import {
   CheckCircle2,
@@ -629,13 +629,10 @@ export default async function LandingPage({
                       </div>
                     </div>
 
-                    <Button
+                    <PaymentChoiceButton
                       variant={plan.accent === "blue" ? "default" : "outline"}
                       className="w-full"
-                      asChild
-                    >
-                      <a href={plan.checkoutHref} target="_blank" rel="noopener noreferrer">{WHATSAPP_CTA_LABEL}</a>
-                    </Button>
+                    />
 
                     <ul className="flex flex-col gap-2.5">
                       {plan.included.slice(0, 5).map((f) => (

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { cn } from "@/lib/utils";
 import { getPlanDisplayName } from "@/lib/plans";
 import {
@@ -210,12 +210,7 @@ export default function SettingsPage() {
               </p>
             </div>
             {plan === "free" && (
-              <Button asChild size="sm">
-                <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="w-4 h-4" />
-                  {WHATSAPP_CTA_LABEL}
-                </a>
-              </Button>
+              <PaymentChoiceButton size="sm" />
             )}
           </CardContent>
         </Card>

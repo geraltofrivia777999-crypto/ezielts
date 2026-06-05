@@ -2,11 +2,10 @@
 
 import { AppShell } from "@/components/layout/app-shell";
 import { ProofSections } from "@/components/marketing/proof-sections";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { cn } from "@/lib/utils";
 import {
   Users, UserCog, CheckCircle2, Play,
-  MessageCircle,
 } from "lucide-react";
 
 const BENEFITS = [
@@ -175,15 +174,7 @@ export default function LivePage() {
                 ))}
               </div>
 
-              <a
-                href={WHATSAPP_CONTACT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-7 flex items-center justify-center gap-2 rounded-xl bg-[#22B36A] px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#1EA05F]"
-              >
-                <MessageCircle className="h-4 w-4" />
-                {WHATSAPP_CTA_LABEL}
-              </a>
+              <PaymentChoiceButton className="mt-7 h-12 w-full rounded-xl bg-[#22B36A] px-5 text-sm font-bold text-white hover:bg-[#1EA05F]" />
             </div>
           ))}
         </div>
@@ -205,17 +196,9 @@ export default function LivePage() {
         <div className="bg-gradient-to-r from-[rgb(var(--primary))] to-violet-500 rounded-2xl p-8 text-center text-white">
           <h2 className="text-xl font-bold mb-2">Готовы начать подготовку?</h2>
           <p className="text-white/80 text-sm mb-5 max-w-md mx-auto">
-            Напишите нам в WhatsApp — подберём подходящий формат и расскажем подробнее
+            Нажмите оплатить и выберите удобный способ: Telegram или WhatsApp.
           </p>
-          <a
-            href={WHATSAPP_CONTACT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-white text-[rgb(var(--primary))] font-semibold px-6 py-3 rounded-xl hover:bg-white/90 transition-colors text-sm"
-          >
-            <MessageCircle className="w-4 h-4" />
-            {WHATSAPP_CTA_LABEL}
-          </a>
+          <PaymentChoiceButton className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90" />
         </div>
 
       </div>

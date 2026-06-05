@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Headphones,
   Loader2,
-  MessageCircle,
   Mic2,
   PenLine,
   Shuffle,
@@ -16,8 +15,8 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { createClient } from "@/lib/supabase/client";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { hasActiveProAccess } from "@/lib/supabase/access";
 import { parseSpeakingTopic } from "@/lib/test-mapping/content-filter";
 import { cn } from "@/lib/utils";
@@ -235,12 +234,7 @@ function TestCard({
           </span>
         </div>
         {locked ? (
-          <Button size="sm" variant="outline" asChild>
-            <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-              <MessageCircle className="h-3.5 w-3.5" />
-              {WHATSAPP_CTA_LABEL}
-            </a>
-          </Button>
+          <PaymentChoiceButton size="sm" variant="outline" icon={null} />
         ) : (
           <Button size="sm" asChild>
             <Link href={item.href}>{completed ? "Повторить" : "Начать"}</Link>
@@ -417,10 +411,6 @@ export function TestsCatalogClient() {
   const currentSkill = SKILLS.find((skill) => skill.key === activeSkill) ?? SKILLS[0];
 
   function startRandom() {
-    if (freeLocked) {
-      window.open(WHATSAPP_CONTACT_URL, "_blank", "noopener,noreferrer");
-      return;
-    }
     const uncompleted = activeItems.filter((item) => !bestAttempt(attempts, item.type, item.id));
     const pool = uncompleted.length > 0 ? uncompleted : activeItems;
     if (pool.length === 0) return;
@@ -495,12 +485,7 @@ export function TestsCatalogClient() {
                 {currentSkill.shortLabel}: сегодня использовано {activeSkillUsed}/1. У Pro все тесты открыты без дневного лимита.
               </p>
             </div>
-            <Button asChild variant={freeLocked ? "default" : "outline"}>
-              <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="h-4 w-4" />
-                {WHATSAPP_CTA_LABEL}
-              </a>
-            </Button>
+            <PaymentChoiceButton variant={freeLocked ? "default" : "outline"} />
           </div>
         )}
 
@@ -552,10 +537,14 @@ export function TestsCatalogClient() {
                   </p>
                 </div>
               </div>
-              <Button onClick={startRandom} disabled={loading || activeItems.length === 0}>
-                {freeLocked ? <MessageCircle className="h-4 w-4" /> : <Shuffle className="h-4 w-4" />}
-                {freeLocked ? WHATSAPP_CTA_LABEL : "Начать"}
-              </Button>
+              {freeLocked ? (
+                <PaymentChoiceButton />
+              ) : (
+                <Button onClick={startRandom} disabled={loading || activeItems.length === 0}>
+                  <Shuffle className="h-4 w-4" />
+                  Начать
+                </Button>
+              )}
             </div>
           </div>
 

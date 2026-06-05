@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { Badge } from "@/components/ui/badge";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import {
   Check,
   ChevronLeft,
   ClipboardCheck,
   FileCheck2,
   Mail,
-  MessageCircle,
   Shield,
   Sparkles,
 } from "lucide-react";
@@ -239,12 +237,7 @@ export default function GuaranteePage() {
               Выберите тариф на 3 или 12 месяцев, чтобы открыть условия гарантии и системную подготовку.
             </p>
           </div>
-          <Button asChild className="rounded-xl">
-            <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-              <MessageCircle className="h-4 w-4" />
-              {WHATSAPP_CTA_LABEL}
-            </a>
-          </Button>
+          <PaymentChoiceButton className="rounded-xl" />
         </section>
 
         <section className="grid gap-4 rounded-2xl border border-[rgb(var(--border))] bg-white p-6 shadow-sm md:grid-cols-[auto_1fr]">

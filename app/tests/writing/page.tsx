@@ -3,9 +3,9 @@
 import { Suspense, useState, useRef, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import { cn } from "@/lib/utils";
 import {
   ChevronLeft,
@@ -814,12 +814,7 @@ function WritingTestPageContent() {
               </div>
             ))}
           </div>
-          <Button size="lg" className="w-full mb-3" asChild>
-            <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-              <MessageCircle className="w-4 h-4" />
-              {WHATSAPP_CTA_LABEL}
-            </a>
-          </Button>
+          <PaymentChoiceButton size="lg" className="w-full mb-3" />
           <Button size="lg" variant="ghost" className="w-full text-[rgb(var(--muted-foreground))]" onClick={() => setShowPaywall(false)}>
             Вернуться к эссе
           </Button>

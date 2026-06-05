@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { cn } from "@/lib/utils";
 import {
   Calendar,
@@ -18,7 +18,6 @@ import {
   CheckCircle2,
   Lock,
   Loader2,
-  MessageCircle,
   Sparkles,
   TrendingUp,
   Flame,
@@ -250,12 +249,7 @@ export default function PlanPage() {
                 <p className="text-sm text-[rgb(var(--muted-foreground))] mb-3">
                   Это превью базового плана. С Pro получишь: расширенный план на 30 дней, mock-экзамены, AI-подбор упражнений по слабым местам.
                 </p>
-                <Button asChild size="sm">
-                  <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    {WHATSAPP_CTA_LABEL}
-                  </a>
-                </Button>
+                <PaymentChoiceButton size="sm" />
               </div>
             </CardContent>
           </Card>
@@ -363,12 +357,7 @@ export default function PlanPage() {
                   </div>
                 )}
                 {!aiPlan && !isPro && (
-                  <Button asChild size="sm">
-                    <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-                      <MessageCircle className="w-4 h-4 mr-2" />
-                      {WHATSAPP_CTA_LABEL}
-                    </a>
-                  </Button>
+                  <PaymentChoiceButton size="sm" />
                 )}
                 {!aiPlan && isPro && (
                   <Button onClick={generateAIPlan} disabled={aiLoading} size="sm">

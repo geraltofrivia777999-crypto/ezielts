@@ -1,5 +1,3 @@
-import { WHATSAPP_CONTACT_URL } from "@/lib/contact";
-
 export type PaidPlan = "pro_monthly" | "pro_quarterly" | "pro_annual";
 export type AppPlan = "free" | PaidPlan;
 
@@ -106,7 +104,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     name: "1 месяц",
     price: 15,
     periodLabel: "за месяц",
-    checkoutHref: WHATSAPP_CONTACT_URL,
+    checkoutHref: "/checkout?plan=pro_monthly",
     accent: "neutral",
     included: [
       "Reading + Listening тесты",
@@ -129,7 +127,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     periodLabel: "за 3 месяца",
     monthlyLabel: "$12/мес — экономия 20%",
     badge: "Лучший выбор",
-    checkoutHref: WHATSAPP_CONTACT_URL,
+    checkoutHref: "/checkout?plan=pro_quarterly",
     accent: "blue",
     included: [
       "Все тесты без лимита",
@@ -150,7 +148,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     price: 99,
     periodLabel: "за 12 месяцев",
     monthlyLabel: "$8.25/мес — экономия 45%",
-    checkoutHref: WHATSAPP_CONTACT_URL,
+    checkoutHref: "/checkout?plan=pro_annual",
     accent: "gold",
     included: [
       "Всё из 3 месяцев",

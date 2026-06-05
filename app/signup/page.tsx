@@ -3,9 +3,9 @@
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { WHATSAPP_CONTACT_URL, WHATSAPP_CTA_LABEL } from "@/lib/contact";
 import {
   Eye,
   EyeOff,
@@ -344,12 +344,7 @@ function SignupContent() {
 
               {/* CTA inside card */}
               <div className="p-5 sm:p-6">
-                <Button size="lg" className="w-full shadow-lg shadow-[rgb(var(--primary)/0.25)]" asChild>
-                  <a href={WHATSAPP_CONTACT_URL} target="_blank" rel="noopener noreferrer">
-                    {WHATSAPP_CTA_LABEL}
-                    <ArrowRight className="h-4 w-4" />
-                  </a>
-                </Button>
+                <PaymentChoiceButton size="lg" className="w-full shadow-lg shadow-[rgb(var(--primary)/0.25)]" />
                 <div className="mt-3 flex items-center justify-center gap-4 text-[11px] text-[rgb(var(--muted-foreground))]">
                   <span className="flex items-center gap-1">
                     <Shield className="h-3 w-3" />
