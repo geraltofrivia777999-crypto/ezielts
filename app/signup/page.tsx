@@ -3,6 +3,12 @@
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  getPhoneCountry,
+  isValidPhoneNumber,
+  normalizePhoneNumber,
+  PhoneInput,
+} from "@/components/forms/phone-input";
 import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +61,7 @@ function SignupContent() {
   // Account fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState("KZ");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
 
@@ -73,19 +80,31 @@ function SignupContent() {
       setError("Пароль должен быть не менее 8 символов");
       return;
     }
+
+    const selectedPhoneCountry = getPhoneCountry(phoneCountry);
+    if (!isValidPhoneNumber(selectedPhoneCountry, phone)) {
+      setError("Укажите корректный номер WhatsApp с кодом страны");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const sb = createClient();
     const emailRedirectUrl = new URL("/api/auth/callback", window.location.origin);
     emailRedirectUrl.searchParams.set("next", "/signup?premium=1");
+    const normalizedPhone = normalizePhoneNumber(selectedPhoneCountry, phone);
 
     // Sign up
     const { data, error: signUpError } = await sb.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
-        data: { name },
+        data: {
+          name: name.trim(),
+          phone: normalizedPhone,
+          phone_country: selectedPhoneCountry.iso,
+        },
         emailRedirectTo: emailRedirectUrl.toString(),
       },
     });
@@ -106,8 +125,8 @@ function SignupContent() {
     if (data.user) {
       /* eslint-disable @typescript-eslint/no-explicit-any */
       await (sb as any).from("profiles").update({
-        name,
-        phone: phone.trim() || null,
+        name: name.trim(),
+        phone: normalizedPhone,
       }).eq("id", data.user.id);
     }
 
@@ -194,20 +213,20 @@ function SignupContent() {
                 />
               </div>
               <div>
-                <div className="relative">
-                  <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#25D366]" />
-                  <Input
-                    type="tel"
-                    placeholder="+7 700 000 00 00 (WhatsApp)"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="pl-9"
-                    autoComplete="tel"
-                    inputMode="tel"
-                  />
-                </div>
+                <label htmlFor="signup-phone" className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[rgb(var(--muted-foreground))]">
+                  <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />
+                  WhatsApp <span className="text-red-500">*</span>
+                </label>
+                <PhoneInput
+                  id="signup-phone"
+                  countryIso={phoneCountry}
+                  value={phone}
+                  onCountryChange={setPhoneCountry}
+                  onChange={setPhone}
+                  required
+                />
                 <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1 ml-1">
-                  Для связи в WhatsApp — без верификации
+                  Выберите страну и укажите номер, чтобы менеджер мог связаться после регистрации
                 </p>
               </div>
               <div className="relative">
