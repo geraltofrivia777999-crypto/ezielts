@@ -1,6 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+type SignupMetadata = {
+  name?: unknown;
+  phone?: unknown;
+};
+
+type ProfileUpdateClient = {
+  from: (table: "profiles") => {
+    update: (values: Record<string, string>) => {
+      eq: (column: "id", value: string) => Promise<unknown>;
+    };
+  };
+};
+
+function metadataString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -18,6 +35,23 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const metadata = (user?.user_metadata ?? {}) as SignupMetadata;
+      const phone = metadataString(metadata.phone);
+      const name = metadataString(metadata.name);
+
+      if (user && (phone || name || user.email)) {
+        const profileUpdate: Record<string, string> = {};
+        if (name) profileUpdate.name = name;
+        if (user.email) profileUpdate.email = user.email;
+        if (phone) profileUpdate.phone = phone;
+
+        await (supabase as unknown as ProfileUpdateClient)
+          .from("profiles")
+          .update(profileUpdate)
+          .eq("id", user.id);
+      }
+
       // Successful exchange — redirect to premium popup (or wherever `next` says)
       const response = NextResponse.redirect(`${publicOrigin}${next}`);
       // Set cookie so middleware guarantees the popup even if this redirect is lost
