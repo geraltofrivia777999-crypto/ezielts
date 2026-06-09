@@ -41,6 +41,11 @@ const PREMIUM_FEATURES = [
   "Гарантия +1 band",
 ];
 
+function markPremiumPromptSeen() {
+  document.cookie = "ez_seen_premium=1; path=/; max-age=31536000; SameSite=Lax";
+  document.cookie = "ez_show_premium=; path=/; max-age=0";
+}
+
 function SignupFallback() {
   return (
     <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center p-4">
@@ -73,6 +78,11 @@ function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const visibleStep: Step = searchParams.get("premium") === "1" ? "premium" : step;
+
+  function continueToDashboard() {
+    markPremiumPromptSeen();
+    window.location.assign("/dashboard");
+  }
 
   async function handleAccountSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -146,8 +156,7 @@ function SignupContent() {
   // Mark premium popup as seen — prevents middleware from redirecting here again.
   useEffect(() => {
     if (visibleStep === "premium") {
-      document.cookie = "ez_seen_premium=1; path=/; max-age=31536000; SameSite=Lax";
-      document.cookie = "ez_show_premium=; path=/; max-age=0";
+      markPremiumPromptSeen();
     }
   }, [visibleStep]);
 
@@ -380,10 +389,14 @@ function SignupContent() {
 
             {/* Free plan button */}
             <div className="mt-3">
-              <Button variant="outline" size="lg" className="w-full" asChild>
-                <Link href="/dashboard">
-                  Готовиться бесплатно
-                </Link>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full"
+                onClick={continueToDashboard}
+              >
+                Готовиться бесплатно
               </Button>
             </div>
 
