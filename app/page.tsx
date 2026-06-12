@@ -19,6 +19,8 @@ import {
   Users,
   Clock,
   ChevronDown,
+  ExternalLink,
+  FileText,
 } from "lucide-react";
 
 // ─── Static data ────────────────────────────────────────────────────────────
@@ -28,6 +30,28 @@ const SKILLS = [
   { icon: Headphones, label: "Listening", color: "text-purple-500", bg: "bg-purple-50" },
   { icon: PenLine, label: "Writing", color: "text-[rgb(var(--secondary))]", bg: "bg-teal-50" },
   { icon: Mic2, label: "Speaking", color: "text-[rgb(var(--primary))]", bg: "bg-violet-50" },
+];
+
+const FOOTER_PRODUCT_LINKS = [
+  { label: "Тесты", href: "/tests" },
+  { label: "AI Writing", href: "/tests/writing" },
+  { label: "AI Speaking", href: "/tests/speaking" },
+  { label: "Тарифы", href: "/pricing" },
+];
+
+const FOOTER_COMPANY_LINKS = [
+  { label: "Главная", href: "/" },
+  { label: "Живое обучение", href: "/live" },
+  { label: "Гарантия", href: "/guarantee" },
+  { label: "Диагностика", href: "/diagnostic" },
+];
+
+const FOOTER_DOCUMENT_LINKS = [
+  { label: "Онлайн оплата", href: "/docs/online-payment.pdf" },
+  { label: "Договор оферты", href: "/docs/dogovor-oferty.pdf" },
+  { label: "Политика конфиденциальности", href: "/docs/privacy-policy.pdf" },
+  { label: "Реквизиты", href: "/docs/rekvizity.pdf" },
+  { label: "Тарифы", href: "/docs/tarify.pdf" },
 ];
 
 const FEATURES = [
@@ -720,48 +744,88 @@ export default async function LandingPage({
 
       {/* ── FOOTER ── */}
       <footer className="bg-[rgb(var(--foreground))] text-[rgb(var(--surface-elevated))]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 grid md:grid-cols-4 gap-8">
-          <div className="md:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
-                <span className="text-white font-bold text-sm">IZ</span>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+          <div className="grid gap-9 lg:grid-cols-[1.4fr_0.75fr_0.9fr_1.25fr]">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center shadow-lg shadow-[rgb(var(--primary)/0.25)]">
+                  <span className="text-white font-bold text-sm">IZ</span>
+                </div>
+                <span className="font-semibold text-white text-lg">ieltszen</span>
               </div>
-              <span className="font-semibold text-white text-lg">ieltszen</span>
+              <p className="text-sm leading-relaxed text-white/65 max-w-xs">
+                Платформа для подготовки к IELTS с AI-фидбеком и реальными тестами.
+                Специально для студентов СНГ.
+              </p>
             </div>
-            <p className="text-sm leading-relaxed opacity-70 max-w-xs">
-              Платформа для подготовки к IELTS с AI-фидбеком и реальными тестами.
-              Специально для студентов СНГ.
-            </p>
-          </div>
-          <div>
-            <div className="text-white font-medium mb-4 text-sm">Продукт</div>
-            <ul className="flex flex-col gap-2 text-sm opacity-70">
-              {["Тесты", "AI Writing", "AI Speaking", "Тарифы"].map((l) => (
-                <li key={l}>
-                  <Link href="#" className="hover:opacity-100 hover:translate-x-0.5 transition-all inline-block">
-                    {l}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <div className="text-white font-medium mb-4 text-sm">Компания</div>
-            <ul className="flex flex-col gap-2 text-sm opacity-70">
-              {["О нас", "Блог", "Контакты", "Политика конфиденциальности"].map(
-                (l) => (
-                  <li key={l}>
-                    <Link href="#" className="hover:opacity-100 hover:translate-x-0.5 transition-all inline-block">
-                      {l}
+
+            <div>
+              <div className="text-white font-medium mb-4 text-sm">Продукт</div>
+              <ul className="flex flex-col gap-2.5 text-sm text-white/65">
+                {FOOTER_PRODUCT_LINKS.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="hover:text-white hover:translate-x-0.5 transition-all inline-block">
+                      {link.label}
                     </Link>
                   </li>
-                )
-              )}
-            </ul>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <div className="text-white font-medium mb-4 text-sm">Компания</div>
+              <ul className="flex flex-col gap-2.5 text-sm text-white/65">
+                {FOOTER_COMPANY_LINKS.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="hover:text-white hover:translate-x-0.5 transition-all inline-block">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
+                <FileText className="h-4 w-4 text-[rgb(var(--primary))]" />
+                Документы
+              </div>
+              <div className="grid gap-2">
+                {FOOTER_DOCUMENT_LINKS.map((doc) => (
+                  <Link
+                    key={doc.href}
+                    href={doc.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-sm text-white/75 transition-all hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <span>{doc.label}</span>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-45 transition-opacity group-hover:opacity-90" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="flex flex-col gap-3 text-xs text-white/55 md:flex-row md:items-center md:justify-between">
+              <span>Юридические документы доступны в PDF и открываются в новой вкладке.</span>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                <Link href="/docs/dogovor-oferty.pdf" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-white">
+                  Оферта
+                </Link>
+                <Link href="/docs/privacy-policy.pdf" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-white">
+                  Конфиденциальность
+                </Link>
+                <Link href="/docs/rekvizity.pdf" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-white">
+                  Реквизиты
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
         <div className="border-t border-white/10">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs opacity-50">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-white/50">
             <span>© 2026 ieltszen. Все права защищены.</span>
             <span>Алматы, Казахстан</span>
           </div>

@@ -157,7 +157,12 @@ export default function LoginPage() {
 
         <p className="text-center text-xs text-[rgb(var(--muted))] mt-6">
           Нажимая «Войти», вы соглашаетесь с{" "}
-          <Link href="/terms" className="underline hover:text-[rgb(var(--foreground))] transition-colors">
+          <Link
+            href="/docs/dogovor-oferty.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-[rgb(var(--foreground))] transition-colors"
+          >
             условиями использования
           </Link>
         </p>
