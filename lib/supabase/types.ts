@@ -1,5 +1,5 @@
 // ============================================================
-//  EZielts — Supabase Database Types
+//  ieltszen — Supabase Database Types
 //  Auto-generate with: npx supabase gen types typescript
 //  This file is the manual version until CLI is set up.
 // ============================================================

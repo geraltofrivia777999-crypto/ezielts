@@ -184,7 +184,7 @@ function UniversityMarquee() {
       <div className="relative">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-white to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-white to-transparent" />
-        <div className="ezielts-marquee flex w-max items-center gap-8">
+        <div className="ieltszen-marquee flex w-max items-center gap-8">
           {loop.map((university, index) => (
             <div
               key={`${university.name}-${index}`}
@@ -258,7 +258,7 @@ export function ProofSections() {
       <ReviewsSection />
 
       <style jsx global>{`
-        @keyframes ezielts-marquee {
+        @keyframes ieltszen-marquee {
           from {
             transform: translateX(0);
           }
@@ -267,11 +267,11 @@ export function ProofSections() {
           }
         }
 
-        .ezielts-marquee {
-          animation: ezielts-marquee 32s linear infinite;
+        .ieltszen-marquee {
+          animation: ieltszen-marquee 32s linear infinite;
         }
 
-        .ezielts-marquee:hover {
+        .ieltszen-marquee:hover {
           animation-play-state: paused;
         }
       `}</style>

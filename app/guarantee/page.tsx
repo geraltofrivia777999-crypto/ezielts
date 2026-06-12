@@ -121,9 +121,9 @@ export default function GuaranteePage() {
           </Link>
           <div className="flex items-center gap-1.5">
             <div className="flex h-6 w-6 items-center justify-center rounded bg-[rgb(var(--primary))]">
-              <span className="text-xs font-bold text-white">EZ</span>
+              <span className="text-xs font-bold text-white">IZ</span>
             </div>
-            <span className="font-semibold text-[rgb(var(--foreground))]">ielts</span>
+            <span className="font-semibold text-[rgb(var(--foreground))]">ieltszen</span>
           </div>
         </div>
       </header>
@@ -191,7 +191,7 @@ export default function GuaranteePage() {
               <div>
                 <h3 className="text-xl font-bold text-[rgb(var(--foreground))]">Как отправить заявку</h3>
                 <p className="mt-3 text-base leading-7 text-[rgb(var(--foreground))]">
-                  Напишите на <strong>support@ezielts.com</strong> с темой: “Заявка на возврат по гарантии IELTS — [Ваше имя]”.
+                  Напишите на <strong>support@ieltszen.com</strong> с темой: “Заявка на возврат по гарантии IELTS — [Ваше имя]”.
                 </p>
                 <p className="mt-4 text-base leading-7 text-[rgb(var(--muted-foreground))]">
                   Приложите полное имя, email аккаунта и PDF-копии обоих сертификатов IELTS: начального и нового. Проверка занимает 7–10 рабочих дней.
@@ -250,7 +250,7 @@ export default function GuaranteePage() {
               <h2 className="text-lg font-bold text-[rgb(var(--foreground))]">Success Checklist</h2>
             </div>
             <p className="text-sm leading-6 text-[rgb(var(--muted-foreground))]">
-              Чеклист будет использоваться как основной источник подтверждения активности: тесты, AI-разборы, mock-экзамены и регулярность занятий должны быть выполнены внутри платформы EZielts.
+              Чеклист будет использоваться как основной источник подтверждения активности: тесты, AI-разборы, mock-экзамены и регулярность занятий должны быть выполнены внутри платформы ieltszen.
             </p>
           </div>
         </section>

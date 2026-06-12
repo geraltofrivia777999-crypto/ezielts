@@ -51,9 +51,9 @@ function SignupFallback() {
     <div className="min-h-screen bg-[rgb(var(--background))] flex items-center justify-center p-4">
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
-          <span className="text-white font-bold text-sm">EZ</span>
+          <span className="text-white font-bold text-sm">IZ</span>
         </div>
-        <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ielts</span>
+        <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ieltszen</span>
       </div>
     </div>
   );
@@ -167,9 +167,9 @@ function SignupContent() {
         <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-violet-100/50 blur-3xl -translate-y-1/2" aria-hidden />
         <Link href="/" className="flex items-center gap-2 mb-8 animate-fade-in">
           <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
-            <span className="text-white font-bold text-sm">EZ</span>
+            <span className="text-white font-bold text-sm">IZ</span>
           </div>
-          <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ielts</span>
+          <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ieltszen</span>
         </Link>
 
         <div className="w-full max-w-sm animate-scale-in">
@@ -277,9 +277,9 @@ function SignupContent() {
       <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center p-4">
         <Link href="/" className="flex items-center gap-2 mb-8">
           <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
-            <span className="text-white font-bold text-sm">EZ</span>
+            <span className="text-white font-bold text-sm">IZ</span>
           </div>
-          <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ielts</span>
+          <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ieltszen</span>
         </Link>
 
         <div className="w-full max-w-md">

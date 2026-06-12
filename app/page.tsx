@@ -257,7 +257,7 @@ export default async function LandingPage({
                   </div>
                 </div>
                 <div className="text-white font-semibold text-sm mb-1">
-                  EZielts AI Score = Real IELTS Score
+                  ieltszen AI Score = Real IELTS Score
                 </div>
                 <p className="text-xs text-white/70 leading-relaxed">
                   Используем данные реальных экзаменов чтобы дать тебе тот же балл,
@@ -723,9 +723,9 @@ export default async function LandingPage({
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
-                <span className="text-white font-bold text-sm">EZ</span>
+                <span className="text-white font-bold text-sm">IZ</span>
               </div>
-              <span className="font-semibold text-white text-lg">ielts</span>
+              <span className="font-semibold text-white text-lg">ieltszen</span>
             </div>
             <p className="text-sm leading-relaxed opacity-70 max-w-xs">
               Платформа для подготовки к IELTS с AI-фидбеком и реальными тестами.
@@ -761,7 +761,7 @@ export default async function LandingPage({
         </div>
         <div className="border-t border-white/10">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs opacity-50">
-            <span>© 2026 EZielts. Все права защищены.</span>
+            <span>© 2026 ieltszen. Все права защищены.</span>
             <span>Алматы, Казахстан</span>
           </div>
         </div>

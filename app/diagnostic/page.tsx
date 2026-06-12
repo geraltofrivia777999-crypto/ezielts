@@ -385,9 +385,9 @@ export default function DiagnosticPage() {
           {/* Logo */}
           <Link href="/" className="mb-10 sm:mb-14 inline-flex items-center gap-2.5 group">
             <div className="w-9 h-9 rounded-xl bg-[rgb(var(--primary))] flex items-center justify-center shadow-lg shadow-[rgb(var(--primary)/0.25)] transition-transform group-hover:scale-105">
-              <span className="text-white font-bold text-sm">EZ</span>
+              <span className="text-white font-bold text-sm">IZ</span>
             </div>
-            <span className="font-semibold text-[rgb(var(--foreground))] text-lg">EZielts</span>
+            <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ieltszen</span>
           </Link>
 
           <div className="w-full max-w-md text-center">
@@ -597,7 +597,7 @@ export default function DiagnosticPage() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-1.5 shrink-0">
             <div className="w-6 h-6 rounded bg-[rgb(var(--primary))] flex items-center justify-center">
-              <span className="text-white font-bold text-xs">EZ</span>
+              <span className="text-white font-bold text-xs">IZ</span>
             </div>
           </Link>
 

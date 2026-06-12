@@ -55,10 +55,10 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="px-5 pt-5 pb-4 border-b border-[rgb(var(--border))]">
         <Link href="/" className="flex items-center gap-2 group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary))] focus-visible:ring-offset-2">
           <div className="w-9 h-9 rounded-xl bg-[rgb(var(--primary))] flex items-center justify-center shadow-md shadow-[rgb(var(--primary)/0.22)] ring-1 ring-white/30">
-            <span className="text-white font-bold text-sm">EZ</span>
+            <span className="text-white font-bold text-sm">IZ</span>
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="font-bold text-[rgb(var(--foreground))] text-base tracking-tight">EZielts</span>
+            <span className="font-bold text-[rgb(var(--foreground))] text-base tracking-tight">ieltszen</span>
             <span className="text-[10px] text-[rgb(var(--muted-foreground))] uppercase tracking-widest">AI Prep</span>
           </div>
         </Link>

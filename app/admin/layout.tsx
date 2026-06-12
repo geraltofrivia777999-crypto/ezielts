@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/admin";
 import { ShieldCheck, Users, BookOpen, LayoutDashboard, LogOut } from "lucide-react";
 
 export const metadata = {
-  title: "Admin — EZielts",
+  title: "Admin — ieltszen",
   robots: { index: false, follow: false },
 };
 

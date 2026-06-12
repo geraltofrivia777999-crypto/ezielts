@@ -1,5 +1,5 @@
 """
-EZielts — Clean Reading-test parser.
+ieltszen — Clean Reading-test parser.
 ====================================
 
 Pure, side-effect-free conversion from a single

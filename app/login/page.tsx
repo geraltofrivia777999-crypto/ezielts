@@ -69,9 +69,9 @@ export default function LoginPage() {
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 mb-8 animate-fade-in">
         <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
-          <span className="text-white font-bold text-sm">EZ</span>
+          <span className="text-white font-bold text-sm">IZ</span>
         </div>
-        <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ielts</span>
+        <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ieltszen</span>
       </Link>
 
       <div className="w-full max-w-sm animate-scale-in">

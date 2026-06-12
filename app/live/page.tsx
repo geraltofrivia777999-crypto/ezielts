@@ -112,7 +112,7 @@ export default function LivePage() {
             в нашем центре подготовки к IELTS
           </h1>
           <p className="text-[rgb(var(--muted-foreground))] mt-3 max-w-2xl mx-auto">
-            Живые занятия с опытными преподавателями + AI-платформа EZielts = максимальный результат
+            Живые занятия с опытными преподавателями + AI-платформа ieltszen = максимальный результат
           </p>
         </div>
 

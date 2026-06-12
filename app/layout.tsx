@@ -15,12 +15,12 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EZielts — Подготовка к IELTS онлайн",
+  title: "ieltszen — Подготовка к IELTS онлайн",
   description:
     "Сдай IELTS с первого раза. Реальные тесты, AI-фидбек по writing и speaking, персональный план подготовки.",
   keywords: ["IELTS", "подготовка к IELTS", "IELTS онлайн", "IELTS тесты", "IELTS writing", "IELTS speaking"],
   openGraph: {
-    title: "EZielts — Подготовка к IELTS онлайн",
+    title: "ieltszen — Подготовка к IELTS онлайн",
     description: "Сдай IELTS с первого раза. AI-фидбек, реальные тесты, персональный план.",
     type: "website",
   },

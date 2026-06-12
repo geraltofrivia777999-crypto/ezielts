@@ -48,13 +48,13 @@ export function Navbar() {
             "w-8 h-8 rounded-lg flex items-center justify-center shadow-sm transition-[background-color,backdrop-filter] duration-300 ease-out",
             scrolled ? "bg-[rgb(var(--primary))]" : "bg-white/20 backdrop-blur-sm"
           )}>
-            <span className="text-white font-bold text-sm">EZ</span>
+            <span className="text-white font-bold text-sm">IZ</span>
           </div>
           <span className={cn(
             "font-semibold text-lg tracking-tight transition-colors duration-300 ease-out",
             scrolled ? "text-[rgb(var(--foreground))]" : "text-white"
           )}>
-            ielts
+            ieltszen
           </span>
         </Link>
 

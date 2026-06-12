@@ -1,5 +1,5 @@
 /**
- * EZielts — typed Supabase query helpers
+ * ieltszen — typed Supabase query helpers
  * Use createClient() from ./server in Server Components / API routes.
  * Use createClient() from ./client in Client Components.
  */

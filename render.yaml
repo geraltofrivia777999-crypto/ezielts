@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ezielts
+    name: ieltszen
     runtime: node
     plan: starter         # $7/мес. Для бесплатного — "free" (засыпает после 15 мин)
     region: frankfurt     # ближе всего к Алматы/Москве по латенси
@@ -19,4 +19,4 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: NEXT_PUBLIC_APP_URL
-        sync: false        # https://ezielts.onrender.com (или свой домен)
+        sync: false        # https://ieltszen.onrender.com (или свой домен)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-EZielts — JSON → Supabase Import Script
+ieltszen — JSON → Supabase Import Script
 ========================================
 Imports all content from parsed JSON files into Supabase.
 
@@ -571,7 +571,7 @@ def upload_audio_files(sb: Client, audio_dir: Path, dry: bool = False):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Import EZielts content to Supabase")
+    parser = argparse.ArgumentParser(description="Import ieltszen content to Supabase")
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing to DB")
     parser.add_argument("--only", choices=["reading","listening","writing","speaking","audio","all"], default="all")
     parser.add_argument("--audio-dir", type=str, help="Path to mp3 files for audio upload")

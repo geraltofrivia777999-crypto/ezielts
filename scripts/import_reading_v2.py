@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-EZielts — Clean Reading importer (v2).
+ieltszen — Clean Reading importer (v2).
 
 Replaces the buggy logic in `import_to_supabase.py::import_reading()`.
 Delegates ALL parsing to `scripts/parsers/reading_parser.py`, which is

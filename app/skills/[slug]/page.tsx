@@ -67,7 +67,7 @@ const SKILLS = {
       "Grammatical Range & Accuracy",
     ],
     contentCount: "310+ заданий",
-    quote: "Раньше я платил репетитору 5000₸ за проверку одного эссе. EZielts даёт такой же подробный разбор бесплатно, и я могу писать каждый день вместо раза в неделю.",
+    quote: "Раньше я платил репетитору 5000₸ за проверку одного эссе. ieltszen даёт такой же подробный разбор бесплатно, и я могу писать каждый день вместо раза в неделю.",
     quoteAuthor: "Айгерим, Астана · 6.0 → 7.5",
     samples: [
       { q: "Some say technology makes people lazy. Discuss both views and give your opinion.", part: "Task 2 · Opinion" },
@@ -100,7 +100,7 @@ const SKILLS = {
       "Matching",
     ],
     contentCount: "38 тестов · 152 секции",
-    quote: "Аудио в EZielts реально как на экзамене — разные акценты, естественная скорость. После 10 тестов перестал теряться на Section 4.",
+    quote: "Аудио в ieltszen реально как на экзамене — разные акценты, естественная скорость. После 10 тестов перестал теряться на Section 4.",
     quoteAuthor: "Дамир, Бишкек · 6.0 → 7.5",
     samples: [
       { q: "Booking a hotel room — fill in the form", part: "Section 1" },
@@ -132,7 +132,7 @@ const SKILLS = {
       "Sentence Completion",
     ],
     contentCount: "750+ тестов · 30 вопросов в каждом",
-    quote: "Раньше я делал True/False/NG наугад — половина мимо. Анализ ошибок EZielts показал паттерн: я путал FALSE и NOT GIVEN. Подтянул за неделю.",
+    quote: "Раньше я делал True/False/NG наугад — половина мимо. Анализ ошибок ieltszen показал паттерн: я путал FALSE и NOT GIVEN. Подтянул за неделю.",
     quoteAuthor: "Мадина, Шымкент · 6.0 → 7.5",
     samples: [
       { q: "The Origins of the Solar System — Academic", part: "Passage 3" },
@@ -153,7 +153,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const skill = SKILLS[slug as SkillKey];
   if (!skill) return {};
   return {
-    title: `${skill.title} — IELTS подготовка с AI | EZielts`,
+    title: `${skill.title} — IELTS подготовка с AI | ieltszen`,
     description: skill.tagline,
   };
 }

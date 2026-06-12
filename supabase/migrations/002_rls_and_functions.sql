@@ -1,5 +1,5 @@
 -- ============================================================
---  EZielts — RLS Policies + Freemium Functions
+--  ieltszen — RLS Policies + Freemium Functions
 --  Migration 002
 -- ============================================================
 
