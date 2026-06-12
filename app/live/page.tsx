@@ -174,7 +174,7 @@ export default function LivePage() {
                 ))}
               </div>
 
-              <PaymentChoiceButton className="mt-7 h-12 w-full rounded-xl bg-[#22B36A] px-5 text-sm font-bold text-white hover:bg-[#1EA05F]" />
+              <PaymentChoiceButton mode="messenger" className="mt-7 h-12 w-full rounded-xl bg-[#22B36A] px-5 text-sm font-bold text-white hover:bg-[#1EA05F]" />
             </div>
           ))}
         </div>
@@ -196,9 +196,9 @@ export default function LivePage() {
         <div className="bg-gradient-to-r from-[rgb(var(--primary))] to-violet-500 rounded-2xl p-8 text-center text-white">
           <h2 className="text-xl font-bold mb-2">Готовы начать подготовку?</h2>
           <p className="text-white/80 text-sm mb-5 max-w-md mx-auto">
-            Нажмите оплатить, и мы откроем защищённую страницу оплаты.
+            Нажмите оплатить и выберите удобный способ: Telegram или WhatsApp.
           </p>
-          <PaymentChoiceButton className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90" />
+          <PaymentChoiceButton mode="messenger" className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90" />
         </div>
 
       </div>
