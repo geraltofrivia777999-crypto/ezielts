@@ -56,13 +56,13 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
         </section>
 
         <aside className="rounded-2xl border border-[rgb(var(--border))] bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-[rgb(var(--foreground))]">Связаться для оплаты</h2>
+          <h2 className="text-xl font-bold text-[rgb(var(--foreground))]">Оплата тарифа</h2>
           <p className="mt-2 text-sm leading-6 text-[rgb(var(--muted-foreground))]">
-            Эквайринг на сайте пока не подключён. Выберите Telegram или WhatsApp, мы подтвердим тариф{" "}
-            <span className="font-mono text-[rgb(var(--foreground))]">{plan.id}</span> и поможем с оплатой.
+            Нажмите оплатить, чтобы перейти на защищённую страницу Lava. После успешной оплаты доступ
+            включится автоматически.
           </p>
 
-          <PaymentChoiceButton className="mt-6 h-12 w-full rounded-xl" />
+          <PaymentChoiceButton planId={plan.id} className="mt-6 h-12 w-full rounded-xl" />
 
           <Button asChild variant="outline" className="mt-3 h-12 w-full rounded-xl">
             <Link href="/pricing">Выбрать другой тариф</Link>

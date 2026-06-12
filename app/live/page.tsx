@@ -196,7 +196,7 @@ export default function LivePage() {
         <div className="bg-gradient-to-r from-[rgb(var(--primary))] to-violet-500 rounded-2xl p-8 text-center text-white">
           <h2 className="text-xl font-bold mb-2">Готовы начать подготовку?</h2>
           <p className="text-white/80 text-sm mb-5 max-w-md mx-auto">
-            Нажмите оплатить и выберите удобный способ: Telegram или WhatsApp.
+            Нажмите оплатить, и мы откроем защищённую страницу оплаты.
           </p>
           <PaymentChoiceButton className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90" />
         </div>

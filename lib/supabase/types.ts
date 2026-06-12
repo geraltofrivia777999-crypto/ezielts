@@ -7,6 +7,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
 export type Plan = "free" | "pro_monthly" | "pro_quarterly" | "pro_annual";
+export type PaidPlan = Exclude<Plan, "free">;
 export type SubStatus = "active" | "cancelled" | "expired" | "trialing";
 export type ContentType = "reading" | "listening" | "writing" | "speaking";
 export type ExamType = "academic" | "general" | "unknown";
@@ -44,6 +45,9 @@ export interface Database {
           plan: Plan;
           status: SubStatus;
           freedompay_sub_id: string | null;
+          lava_contract_id: string | null;
+          lava_offer_id: string | null;
+          payment_provider: string | null;
           trial_ends_at: string | null;
           current_period_start: string | null;
           current_period_end: string | null;
@@ -53,6 +57,26 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["subscriptions"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["subscriptions"]["Insert"]>;
+      };
+      payments: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          provider: string;
+          provider_invoice_id: string | null;
+          provider_offer_id: string | null;
+          plan: PaidPlan | null;
+          amount: number | null;
+          currency: string | null;
+          status: string;
+          event_type: string | null;
+          raw_payload: Json | null;
+          paid_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["payments"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["payments"]["Insert"]>;
       };
       user_daily_usage: {
         Row: {
