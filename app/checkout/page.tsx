@@ -38,6 +38,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
             <span className="text-5xl font-black text-[rgb(var(--foreground))]">${plan.price}</span>
             {plan.monthlyLabel && <span className="pb-2 text-sm font-bold text-emerald-700">{plan.monthlyLabel}</span>}
           </div>
+          <p className="mt-2 text-sm font-medium text-[rgb(var(--muted-foreground))]">{plan.priceKztLabel}</p>
 
           <div className="mt-8 rounded-2xl bg-[rgb(var(--surface-elevated))] p-5">
             <div className="mb-4 flex items-center gap-2 font-semibold text-[rgb(var(--foreground))]">

@@ -651,6 +651,9 @@ export default async function LandingPage({
                       <div className="text-sm text-[rgb(var(--muted-foreground))] mt-1">
                         {plan.monthlyLabel ?? plan.periodLabel}
                       </div>
+                      <div className="mt-1 text-xs font-medium text-[rgb(var(--muted-foreground))]">
+                        {plan.priceKztLabel}
+                      </div>
                     </div>
 
                     <PaymentChoiceButton

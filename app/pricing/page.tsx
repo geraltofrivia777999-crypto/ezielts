@@ -82,6 +82,7 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
             <span className="text-4xl font-bold tracking-normal text-[rgb(var(--foreground))]">${plan.price}</span>
             <span className="mb-1 text-sm text-[rgb(var(--muted-foreground))]">{plan.periodLabel}</span>
           </div>
+          <p className="mt-1 text-xs font-medium text-[rgb(var(--muted-foreground))]">{plan.priceKztLabel}</p>
           {plan.monthlyLabel && (
             <p className="mt-1 text-xs font-medium text-[rgb(var(--success))]">{plan.monthlyLabel}</p>
           )}

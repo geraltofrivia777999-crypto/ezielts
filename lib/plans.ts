@@ -25,6 +25,7 @@ export type PricingPlan = {
   eyebrow: string;
   name: string;
   price: number;
+  priceKztLabel: string;
   periodLabel: string;
   monthlyLabel?: string;
   badge?: string;
@@ -103,6 +104,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     eyebrow: "Попробовать",
     name: "1 месяц",
     price: 15,
+    priceKztLabel: "≈ 7 320 ₸",
     periodLabel: "за месяц",
     checkoutHref: "/checkout?plan=pro_monthly",
     accent: "neutral",
@@ -124,6 +126,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     eyebrow: "Подготовиться",
     name: "3 месяца",
     price: 36,
+    priceKztLabel: "≈ 17 580 ₸",
     periodLabel: "за 3 месяца",
     monthlyLabel: "$12/мес — экономия 20%",
     badge: "Лучший выбор",
@@ -146,6 +149,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     eyebrow: "Максимум",
     name: "12 месяцев",
     price: 99,
+    priceKztLabel: "≈ 48 330 ₸",
     periodLabel: "за 12 месяцев",
     monthlyLabel: "$8.25/мес — экономия 45%",
     checkoutHref: "/checkout?plan=pro_annual",
