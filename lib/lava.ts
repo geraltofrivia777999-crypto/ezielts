@@ -2,6 +2,7 @@ import { normalizePlan, type AppPlan, type PaidPlan } from "@/lib/plans";
 
 export const LAVA_API_BASE = "https://gate.lava.top";
 export const LAVA_CREATE_INVOICE_URL = `${LAVA_API_BASE}/api/v3/invoice`;
+export const LAVA_INVOICE_URL = `${LAVA_API_BASE}/api/v1/invoices`;
 export const LAVA_CURRENCY = "USD";
 
 const LAVA_OFFER_ENV: Record<PaidPlan, string> = {
@@ -24,6 +25,32 @@ export type LavaInvoiceResponse = {
     amount?: number;
     currency?: string;
   };
+};
+
+export type LavaInvoiceDetails = {
+  id?: string;
+  type?: string;
+  datetime?: string | null;
+  status?: string;
+  receipt?: {
+    amount?: number;
+    currency?: string;
+    fee?: number;
+  } | null;
+  amountTotal?: {
+    amount?: number;
+    currency?: string;
+  } | null;
+  buyer?: {
+    email?: string;
+    cardMask?: string;
+  } | null;
+  product?: {
+    id?: string;
+    title?: string;
+    name?: string;
+    offer?: string;
+  } | null;
 };
 
 export type LavaWebhookPayload = {

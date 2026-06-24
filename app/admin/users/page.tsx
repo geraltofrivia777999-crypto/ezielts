@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin";
 import { getAdminUsersData, type AdminUserRow } from "@/lib/admin-data";
 import type { ContentType } from "@/lib/supabase/types";
 import { AlertTriangle, Clock, Crown, UserCheck, Users } from "lucide-react";
+import { LavaPaymentSyncButton } from "./lava-payment-sync-button";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -76,7 +77,10 @@ export default async function AdminUsersPage() {
             Показываем всех пользователей из Supabase Auth. Обновлено: {formatDateTime(data.generatedAt)}
           </p>
         </div>
-        <Badge variant="outline">{rows.length} строк</Badge>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <Badge variant="outline">{rows.length} строк</Badge>
+          <LavaPaymentSyncButton />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
