@@ -91,6 +91,13 @@ function invoiceCurrency(invoice: LavaInvoiceDetails): string | null {
   return stringValue(invoice.receipt?.currency) ?? stringValue(invoice.amountTotal?.currency);
 }
 
+async function updatePaymentRecord(service: ReturnType<typeof createServiceClient>, paymentId: string, update: Record<string, unknown>) {
+  return (service as any)
+    .from("payments")
+    .update(update)
+    .eq("id", paymentId);
+}
+
 async function fetchLavaInvoice(invoiceId: string): Promise<{ invoice: LavaInvoiceDetails | null; error: string | null }> {
   const apiKey = getLavaApiKey();
   if (!apiKey) {
@@ -200,36 +207,33 @@ export async function syncLavaPaymentByInvoiceId(invoiceId: string): Promise<Lav
   if (plan) paymentUpdate.plan = plan;
   if (nextPaymentStatus === "completed") paymentUpdate.paid_at = paidAt;
 
-  const { error: paymentUpdateError } = await (service as any)
-    .from("payments")
-    .update(paymentUpdate)
-    .eq("id", payment.id);
-
-  if (paymentUpdateError) {
-    return {
-      invoiceId,
-      email: buyerEmail,
-      plan,
-      lavaStatus,
-      paymentStatus: nextPaymentStatus,
-      action: "database_error",
-      message: "Lava invoice прочитан, но payment не обновился",
-    };
-  }
-
-  if (nextPaymentStatus === "failed") {
-    return {
-      invoiceId,
-      email: buyerEmail,
-      plan,
-      lavaStatus,
-      paymentStatus: nextPaymentStatus,
-      action: "failed",
-      message: "Оплата в Lava завершилась ошибкой",
-    };
-  }
-
   if (nextPaymentStatus !== "completed") {
+    const { error: paymentUpdateError } = await updatePaymentRecord(service, payment.id, paymentUpdate);
+
+    if (paymentUpdateError) {
+      return {
+        invoiceId,
+        email: buyerEmail,
+        plan,
+        lavaStatus,
+        paymentStatus: nextPaymentStatus,
+        action: "database_error",
+        message: "Lava invoice прочитан, но payment не обновился",
+      };
+    }
+
+    if (nextPaymentStatus === "failed") {
+      return {
+        invoiceId,
+        email: buyerEmail,
+        plan,
+        lavaStatus,
+        paymentStatus: nextPaymentStatus,
+        action: "failed",
+        message: "Оплата в Lava завершилась ошибкой",
+      };
+    }
+
     return {
       invoiceId,
       email: buyerEmail,
@@ -242,6 +246,8 @@ export async function syncLavaPaymentByInvoiceId(invoiceId: string): Promise<Lav
   }
 
   if (!userId || !plan) {
+    await updatePaymentRecord(service, payment.id, paymentUpdate);
+
     return {
       invoiceId,
       email: buyerEmail,
@@ -253,26 +259,16 @@ export async function syncLavaPaymentByInvoiceId(invoiceId: string): Promise<Lav
     };
   }
 
-  if (payment.status === "completed") {
-    return {
-      invoiceId,
-      email: buyerEmail,
-      plan,
-      lavaStatus,
-      paymentStatus: nextPaymentStatus,
-      action: "already_completed",
-      message: "Payment уже был completed, повторно подписка не начислялась",
-    };
-  }
-
   const { data: subscriptionData } = await (service as any)
     .from("subscriptions")
-    .select("current_period_end, lava_contract_id")
+    .select("plan, status, current_period_end, lava_contract_id")
     .eq("user_id", userId)
     .maybeSingle();
 
-  const subscription = subscriptionData as { current_period_end?: string | null; lava_contract_id?: string | null } | null;
+  const subscription = subscriptionData as { plan?: string | null; status?: string | null; current_period_end?: string | null; lava_contract_id?: string | null } | null;
   if (subscription?.lava_contract_id === invoiceId) {
+    await updatePaymentRecord(service, payment.id, paymentUpdate);
+
     return {
       invoiceId,
       email: buyerEmail,
@@ -281,6 +277,25 @@ export async function syncLavaPaymentByInvoiceId(invoiceId: string): Promise<Lav
       paymentStatus: nextPaymentStatus,
       action: "already_applied",
       message: "Эта Lava оплата уже привязана к подписке",
+    };
+  }
+
+  if (
+    payment.status === "completed" &&
+    subscription?.status === "active" &&
+    subscription?.plan &&
+    subscription.plan !== "free" &&
+    subscription?.lava_contract_id &&
+    subscription.lava_contract_id !== invoiceId
+  ) {
+    return {
+      invoiceId,
+      email: buyerEmail,
+      plan,
+      lavaStatus,
+      paymentStatus: nextPaymentStatus,
+      action: "already_completed",
+      message: "Payment уже был completed, повторно подписка не начислялась",
     };
   }
 
@@ -315,6 +330,20 @@ export async function syncLavaPaymentByInvoiceId(invoiceId: string): Promise<Lav
       paymentStatus: nextPaymentStatus,
       action: "database_error",
       message: "Payment completed, но подписка не обновилась",
+    };
+  }
+
+  const { error: paymentCompleteError } = await updatePaymentRecord(service, payment.id, paymentUpdate);
+
+  if (paymentCompleteError) {
+    return {
+      invoiceId,
+      email: buyerEmail,
+      plan,
+      lavaStatus,
+      paymentStatus: nextPaymentStatus,
+      action: "database_error",
+      message: "Подписка обновилась, но payment не пометился completed",
     };
   }
 

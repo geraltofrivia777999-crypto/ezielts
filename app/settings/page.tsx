@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,18 @@ type Profile = {
   goal: string;
 };
 
+type SubscriptionPlan = {
+  plan: string | null;
+  status: string | null;
+  current_period_end: string | null;
+};
+
+function activePlanFromSubscription(subscription: SubscriptionPlan | null | undefined) {
+  if (!subscription || subscription.plan === "free" || subscription.status !== "active") return "free";
+  if (subscription.current_period_end && new Date(subscription.current_period_end).getTime() < Date.now()) return "free";
+  return subscription.plan ?? "free";
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -73,38 +85,67 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwSaved, setPwSaved] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      const sb = createClient();
-      const { data: { user } } = await sb.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      const { data } = await (sb as any)
-        .from("profiles")
-        .select("name, email, phone, target_band, exam_type, exam_date, goal, subscriptions(plan)")
-        .eq("id", user.id)
-        .single();
-
-      if (data) {
-        setProfile({
-          name: data.name ?? "",
-          email: data.email ?? user.email ?? "",
-          phone: data.phone ?? "",
-          target_band: data.target_band ?? 7.0,
-          exam_type: data.exam_type ?? "unknown",
-          exam_date: data.exam_date ?? null,
-          goal: data.goal ?? "other",
-        });
-        setPlan(data.subscriptions?.[0]?.plan ?? "free");
-      }
-      setLoading(false);
+  const loadSettings = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoading(true);
+    const sb = createClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) {
+      router.push("/login");
+      return;
     }
-    load();
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const [{ data }, { data: subscription }] = await Promise.all([
+      (sb as any)
+        .from("profiles")
+        .select("name, email, phone, target_band, exam_type, exam_date, goal")
+        .eq("id", user.id)
+        .single(),
+      (sb as any)
+        .from("subscriptions")
+        .select("plan, status, current_period_end")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
+
+    if (data) {
+      setProfile({
+        name: data.name ?? "",
+        email: data.email ?? user.email ?? "",
+        phone: data.phone ?? "",
+        target_band: data.target_band ?? 7.0,
+        exam_type: data.exam_type ?? "unknown",
+        exam_date: data.exam_date ?? null,
+        goal: data.goal ?? "other",
+      });
+    }
+    setPlan(activePlanFromSubscription(subscription as SubscriptionPlan | null));
+    setLoading(false);
   }, [router]);
+
+  useEffect(() => {
+    loadSettings(true);
+  }, [loadSettings]);
+
+  useEffect(() => {
+    function refreshSettings() {
+      loadSettings(false);
+    }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") refreshSettings();
+    }
+
+    window.addEventListener("ieltszen:subscription-updated", refreshSettings);
+    window.addEventListener("focus", refreshSettings);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("ieltszen:subscription-updated", refreshSettings);
+      window.removeEventListener("focus", refreshSettings);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [loadSettings]);
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();

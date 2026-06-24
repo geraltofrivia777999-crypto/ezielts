@@ -45,6 +45,7 @@ export function LavaAutoSync() {
         const payload = (await response.json().catch(() => null)) as SyncResponse | null;
         if (response.ok && payload?.activated && payload.activated > 0) {
           window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+          window.dispatchEvent(new CustomEvent("ieltszen:subscription-updated"));
           setActivated(true);
           router.refresh();
           window.setTimeout(() => setActivated(false), 7000);
