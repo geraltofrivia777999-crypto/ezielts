@@ -74,6 +74,7 @@ export function PaymentChoiceButton({
         throw new Error(payload?.message || "Не удалось открыть оплату.");
       }
 
+      window.localStorage.setItem("ieltszen:pending-lava-payment", "1");
       window.location.assign(payload.paymentUrl);
     } catch (paymentError) {
       setError(paymentError instanceof Error ? paymentError.message : "Не удалось открыть оплату.");
