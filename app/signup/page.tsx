@@ -19,7 +19,6 @@ import {
   Mail,
   Lock,
   User,
-  MailCheck,
   MessageCircle,
   Crown,
   CheckCircle2,
@@ -29,7 +28,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-type Step = "account" | "verify" | "premium";
+type Step = "account" | "premium";
 
 const PREMIUM_FEATURES = [
   "Все тесты без лимита",
@@ -106,28 +105,23 @@ function SignupContent() {
     setError(null);
 
     const sb = createClient();
-    const emailRedirectUrl = new URL("/api/auth/callback", window.location.origin);
-    emailRedirectUrl.searchParams.set("next", `/signup?premium=1&plan=${requestedPlan}`);
     const normalizedPhone = normalizePhoneNumber(selectedPhoneCountry, phone);
 
-    // Sign up
-    const { data, error: signUpError } = await sb.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          name: name.trim(),
-          phone: normalizedPhone,
-          phone_country: selectedPhoneCountry.iso,
-        },
-        emailRedirectTo: emailRedirectUrl.toString(),
-      },
+    const signupResponse = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email.trim(),
+        password,
+        name: name.trim(),
+        phone: normalizedPhone,
+        phoneCountry: selectedPhoneCountry.iso,
+      }),
     });
 
-    if (signUpError) {
-      setError(signUpError.message === "User already registered"
-        ? "Пользователь с таким email уже существует"
-        : signUpError.message);
+    if (!signupResponse.ok) {
+      const body = await signupResponse.json().catch(() => null);
+      setError(typeof body?.message === "string" ? body.message : "Не удалось создать аккаунт");
       setLoading(false);
       return;
     }
@@ -136,24 +130,18 @@ function SignupContent() {
     // even if the email callback redirect fails (e.g. different browser, expired code)
     document.cookie = "ez_show_premium=1; path=/; max-age=86400; SameSite=Lax";
 
-    // Update profile with basic data
-    if (data.user) {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      await (sb as any).from("profiles").update({
-        name: name.trim(),
-        phone: normalizedPhone,
-      }).eq("id", data.user.id);
-    }
+    const { error: signInError } = await sb.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-    setLoading(false);
-
-    // If email confirmation is required, session is null — show "check inbox"
-    if (!data.session) {
-      setStep("verify");
+    if (signInError) {
+      setError(signInError.message);
+      setLoading(false);
       return;
     }
 
-    // Otherwise (email confirmation disabled), session is set — show the upgrade prompt.
+    setLoading(false);
     setStep("premium");
     router.refresh();
   }
@@ -270,50 +258,6 @@ function SignupContent() {
                 {!loading && <ArrowRight className="w-4 h-4" />}
               </Button>
             </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Step 3: Email verification ───────────────────────────────────────────
-  if (visibleStep === "verify") {
-    return (
-      <div className="min-h-screen bg-[rgb(var(--background))] flex flex-col items-center justify-center p-4">
-        <Link href="/" className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary))] flex items-center justify-center">
-            <span className="text-white font-bold text-sm">IZ</span>
-          </div>
-          <span className="font-semibold text-[rgb(var(--foreground))] text-lg">ieltszen</span>
-        </Link>
-
-        <div className="w-full max-w-md">
-          <div className="bg-[rgb(var(--surface))] rounded-2xl border border-[rgb(var(--border))] shadow-sm p-8 text-center flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-              <MailCheck className="w-8 h-8 text-green-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-[rgb(var(--foreground))]">
-              Проверьте почту
-            </h1>
-            <p className="text-sm text-[rgb(var(--muted-foreground))]">
-              Мы отправили письмо на <strong className="text-[rgb(var(--foreground))]">{email}</strong>.
-              Перейдите по ссылке в письме, чтобы активировать аккаунт.
-            </p>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 text-left w-full">
-              <strong className="block mb-1">Не пришло письмо?</strong>
-              <ul className="list-disc pl-4 space-y-0.5">
-                <li>Проверьте папку &quot;Спам&quot;</li>
-                <li>Подождите 1–2 минуты</li>
-                <li>Убедитесь, что email указан правильно</li>
-              </ul>
-            </div>
-
-            <Link href="/login" className="w-full">
-              <Button variant="outline" className="w-full">
-                Перейти ко входу
-              </Button>
-            </Link>
           </div>
         </div>
       </div>
