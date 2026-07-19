@@ -121,8 +121,7 @@ function SignupContent() {
       return;
     }
 
-    // Mark this browser so middleware can redirect to premium popup
-    // even if the email callback redirect fails (e.g. different browser, expired code)
+    // Keep the post-signup offer guaranteed if the user later lands on a protected route.
     document.cookie = "ez_show_premium=1; path=/; max-age=86400; SameSite=Lax";
 
     const { error: signInError } = await sb.auth.signInWithPassword({
@@ -138,7 +137,7 @@ function SignupContent() {
 
     setLoading(false);
     setStep("premium");
-    router.refresh();
+    router.replace("/signup?premium=1");
   }
 
   // Mark premium popup as seen — prevents middleware from redirecting here again.
