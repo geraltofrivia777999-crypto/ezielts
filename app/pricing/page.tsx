@@ -118,7 +118,7 @@ function PlanCard({ plan }: { plan: PricingPlan }) {
           </ul>
         )}
 
-        <PaymentChoiceButton planId={plan.id} className={cn("relative mt-auto h-10 w-full rounded-xl text-sm shadow-sm", styles.button)} />
+        <PaymentChoiceButton className={cn("relative mt-auto h-10 w-full rounded-xl text-sm shadow-sm", styles.button)} />
       </div>
     </article>
   );
@@ -188,10 +188,9 @@ export default function PricingPage() {
         <section className="rounded-2xl bg-gradient-to-r from-[rgb(var(--primary))] to-violet-500 p-8 text-center text-white">
           <h2 className="mb-2 text-xl font-bold">Готовы начать подготовку?</h2>
           <p className="mx-auto mb-5 max-w-md text-sm text-white/80">
-            Нажмите оплатить, и мы откроем защищённую страницу оплаты Lava.
+            Нажмите «Оплатить» и выберите WhatsApp или Telegram для связи с менеджером.
           </p>
           <PaymentChoiceButton
-            planId="pro_quarterly"
             className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90"
           />
         </section>

@@ -3,7 +3,6 @@
 import { Suspense, useState } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
-import { LavaAutoSync } from "@/components/payment/lava-auto-sync";
 
 function AppSidebarFallback() {
   return (
@@ -23,8 +22,6 @@ export function AppShell({
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,rgb(var(--background))_0%,rgb(var(--surface-elevated)/0.48)_100%)]">
-      <LavaAutoSync />
-
       {/* Desktop sidebar */}
       <div className="hidden h-full min-h-0 shrink-0 md:block">
         <Suspense fallback={<AppSidebarFallback />}>

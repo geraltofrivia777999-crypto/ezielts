@@ -174,7 +174,7 @@ export default function LivePage() {
                 ))}
               </div>
 
-              <PaymentChoiceButton mode="messenger" className="mt-7 h-12 w-full rounded-xl bg-[#22B36A] px-5 text-sm font-bold text-white hover:bg-[#1EA05F]" />
+              <PaymentChoiceButton className="mt-7 h-12 w-full rounded-xl bg-[#22B36A] px-5 text-sm font-bold text-white hover:bg-[#1EA05F]" />
             </div>
           ))}
         </div>
@@ -198,7 +198,7 @@ export default function LivePage() {
           <p className="text-white/80 text-sm mb-5 max-w-md mx-auto">
             Нажмите оплатить и выберите удобный способ: Telegram или WhatsApp.
           </p>
-          <PaymentChoiceButton mode="messenger" className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90" />
+          <PaymentChoiceButton className="h-12 rounded-xl bg-white px-6 text-sm font-semibold text-[rgb(var(--primary))] shadow-none hover:bg-white/90" />
         </div>
 
       </div>

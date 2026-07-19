@@ -59,11 +59,11 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
         <aside className="rounded-2xl border border-[rgb(var(--border))] bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-[rgb(var(--foreground))]">Оплата тарифа</h2>
           <p className="mt-2 text-sm leading-6 text-[rgb(var(--muted-foreground))]">
-            Нажмите оплатить, чтобы перейти на защищённую страницу Lava. После успешной оплаты доступ
-            включится автоматически.
+            Нажмите «Оплатить» и выберите WhatsApp или Telegram. Менеджер поможет провести оплату
+            и подключить доступ.
           </p>
 
-          <PaymentChoiceButton planId={plan.id} className="mt-6 h-12 w-full rounded-xl" />
+          <PaymentChoiceButton className="mt-6 h-12 w-full rounded-xl" />
 
           <Button asChild variant="outline" className="mt-3 h-12 w-full rounded-xl">
             <Link href="/pricing">Выбрать другой тариф</Link>

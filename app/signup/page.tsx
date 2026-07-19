@@ -12,7 +12,6 @@ import {
 import { PaymentChoiceButton } from "@/components/payment/payment-choice-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { normalizePlan, type PaidPlan } from "@/lib/plans";
 import {
   Eye,
   EyeOff,
@@ -78,10 +77,6 @@ function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const visibleStep: Step = searchParams.get("premium") === "1" ? "premium" : step;
-  const requestedPlan = (() => {
-    const normalized = normalizePlan(searchParams.get("plan"));
-    return (normalized === "free" ? "pro_quarterly" : normalized) as PaidPlan;
-  })();
 
   function continueToDashboard() {
     markPremiumPromptSeen();
@@ -321,7 +316,7 @@ function SignupContent() {
 
               {/* CTA inside card */}
               <div className="p-5 sm:p-6">
-                <PaymentChoiceButton planId={requestedPlan} size="lg" className="w-full shadow-lg shadow-[rgb(var(--primary)/0.25)]" />
+                <PaymentChoiceButton size="lg" className="w-full shadow-lg shadow-[rgb(var(--primary)/0.25)]" />
                 <div className="mt-3 flex items-center justify-center gap-4 text-[11px] text-[rgb(var(--muted-foreground))]">
                   <span className="flex items-center gap-1">
                     <Shield className="h-3 w-3" />

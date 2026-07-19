@@ -657,7 +657,6 @@ export default async function LandingPage({
                     </div>
 
                     <PaymentChoiceButton
-                      planId={plan.id}
                       variant={plan.accent === "blue" ? "default" : "outline"}
                       className="w-full"
                     />
