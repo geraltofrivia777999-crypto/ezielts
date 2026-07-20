@@ -22,6 +22,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") ?? "/signup?premium=1";
+  const isPasswordRecovery = next === "/reset-password";
 
   // Resolve the public origin (Render/Vercel/proxies set x-forwarded-*).
   // Falls back to NEXT_PUBLIC_APP_URL, then to the raw request origin.
@@ -52,16 +53,24 @@ export async function GET(request: Request) {
           .eq("id", user.id);
       }
 
-      // Successful exchange — redirect to premium popup (or wherever `next` says)
+      // Successful exchange — redirect to the requested post-auth screen.
       const response = NextResponse.redirect(`${publicOrigin}${next}`);
-      // Set cookie so middleware guarantees the popup even if this redirect is lost
-      response.cookies.set("ez_show_premium", "1", {
-        path: "/",
-        maxAge: 86400,
-        sameSite: "lax",
-      });
+      if (!isPasswordRecovery) {
+        // Set cookie so middleware guarantees the post-signup offer.
+        response.cookies.set("ez_show_premium", "1", {
+          path: "/",
+          maxAge: 86400,
+          sameSite: "lax",
+        });
+      }
       return response;
     }
+  }
+
+  if (isPasswordRecovery) {
+    // Keep recovery failures in the password flow instead of sending the user
+    // to the generic login page. The reset screen explains how to retry.
+    return NextResponse.redirect(`${publicOrigin}/reset-password`);
   }
 
   // Code exchange failed — send to login. The ez_show_premium cookie

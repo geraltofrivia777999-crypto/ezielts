@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("next/server", () => ({
   NextResponse: {
-    redirect: vi.fn((url: string | URL) => ({ url: url.toString(), status: 307 })),
+    redirect: vi.fn((url: string | URL) => ({
+      url: url.toString(),
+      status: 307,
+      cookies: { set: vi.fn() },
+    })),
   },
 }));
 
@@ -35,6 +39,17 @@ describe("GET /api/auth/callback", () => {
     expect(lastRedirectUrl()).toBe("https://app.test/settings");
   });
 
+  it("redirects a successful recovery exchange without setting the signup offer cookie", async () => {
+    (createClient as Mock).mockResolvedValue(createMockSupabaseClient());
+
+    const response = await GET(getRequest(
+      "https://app.test/api/auth/callback?code=abc&next=/reset-password"
+    )) as unknown as { cookies: { set: Mock } };
+
+    expect(lastRedirectUrl()).toBe("https://app.test/reset-password");
+    expect(response.cookies.set).not.toHaveBeenCalled();
+  });
+
   it("redirects to /login?error=oauth when there is no code", async () => {
     await GET(getRequest("https://app.test/api/auth/callback"));
     expect(lastRedirectUrl()).toBe("https://app.test/login?error=oauth");
@@ -46,6 +61,16 @@ describe("GET /api/auth/callback", () => {
     (createClient as Mock).mockResolvedValue(sb);
     await GET(getRequest("https://app.test/api/auth/callback?code=bad"));
     expect(lastRedirectUrl()).toBe("https://app.test/login?error=oauth");
+  });
+
+  it("keeps a failed recovery exchange in the password reset flow", async () => {
+    const sb = createMockSupabaseClient();
+    sb.auth.exchangeCodeForSession.mockResolvedValue({ error: new Error("bad recovery code") });
+    (createClient as Mock).mockResolvedValue(sb);
+
+    await GET(getRequest("https://app.test/api/auth/callback?code=bad&next=/reset-password"));
+
+    expect(lastRedirectUrl()).toBe("https://app.test/reset-password");
   });
 
   describe("origin resolution (proxy / env / request)", () => {

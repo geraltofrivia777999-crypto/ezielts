@@ -17,17 +17,29 @@ export default function ResetPasswordPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
-  // Supabase sends the user to this page with a hash containing access_token.
-  // The client SDK picks it up automatically via onAuthStateChange.
   useEffect(() => {
     const sb = createClient();
+    let active = true;
+
+    void sb.auth.getUser().then(({ data: { user } }) => {
+      if (!active) return;
+      setSessionReady(Boolean(user));
+      setCheckingSession(false);
+    });
+
     const { data: { subscription } } = sb.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setSessionReady(true);
+        setCheckingSession(false);
       }
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -97,9 +109,18 @@ export default function ResetPasswordPage() {
                 </div>
               )}
 
-              {!sessionReady && (
+              {checkingSession && (
                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm rounded-lg px-3 py-2 mb-4">
-                  Ожидаем подтверждения ссылки из письма...
+                  Проверяем ссылку для сброса пароля...
+                </div>
+              )}
+
+              {!checkingSession && !sessionReady && (
+                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm rounded-lg px-3 py-2 mb-4">
+                  Ссылка недействительна или уже истекла. Запросите новое письмо для сброса пароля.
+                  <Link href="/forgot-password" className="mt-2 block font-semibold underline underline-offset-2">
+                    Запросить новую ссылку
+                  </Link>
                 </div>
               )}
 

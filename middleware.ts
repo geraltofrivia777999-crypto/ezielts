@@ -7,6 +7,14 @@ const PROTECTED = ["/dashboard", "/tests", "/progress", "/pricing", "/checkout",
 const AUTH_ROUTES = ["/login", "/signup"];
 
 export async function middleware(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl;
+
+  // Supabase may send password-recovery codes to the Site URL. Do not touch
+  // stale auth cookies before the landing page forwards the code to callback.
+  if (pathname === "/" && searchParams.has("code")) {
+    return NextResponse.next({ request });
+  }
+
   // Skip auth middleware if Supabase is not configured yet
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -39,7 +47,6 @@ export async function middleware(request: NextRequest) {
 
 
   const { data: { user } } = await supabase.auth.getUser();
-  const { pathname } = request.nextUrl;
 
   // Redirect unauthenticated users away from protected routes
   const isProtected = PROTECTED.some((p) => pathname.startsWith(p));
