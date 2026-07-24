@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getPhoneCountry,
+  getPhoneValidationError,
   isValidPhoneNumber,
   normalizePhoneNumber,
   PhoneInput,
@@ -91,8 +92,9 @@ function SignupContent() {
     }
 
     const selectedPhoneCountry = getPhoneCountry(phoneCountry);
-    if (!isValidPhoneNumber(selectedPhoneCountry, phone)) {
-      setError("Укажите корректный номер WhatsApp с кодом страны");
+    const phoneValidationError = getPhoneValidationError(selectedPhoneCountry, phone);
+    if (phoneValidationError) {
+      setError(phoneValidationError);
       return;
     }
 

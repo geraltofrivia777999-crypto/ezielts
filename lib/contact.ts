@@ -1,4 +1,4 @@
-export const WHATSAPP_PAYMENT_URL = "https://wa.me/message/GVH7IR2E437JM1";
+export const WHATSAPP_PAYMENT_URL = "https://wa.me/message/R2O6CNBXJ7NAH1";
 export const TELEGRAM_PAYMENT_URL = "https://t.me/m/LglRVhWbYmRi";
 export const PAYMENT_CTA_LABEL = "Оплатить";
 

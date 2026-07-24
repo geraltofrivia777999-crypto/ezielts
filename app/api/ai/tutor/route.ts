@@ -20,7 +20,7 @@ IMPORTANT — Use the student context below to give PERSONALIZED advice:
 - If a field is "не указано" / "no data yet" — say so politely and suggest a path to fill it.`;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export async function buildStudentContext(sb: any, userId: string): Promise<string> {
+async function buildStudentContext(sb: any, userId: string): Promise<string> {
   try {
     // Profile + subscription summary from view
     const { data: summary } = await sb
